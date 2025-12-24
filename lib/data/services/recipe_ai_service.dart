@@ -1,0 +1,53 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+class RecipeAIService {
+  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxx";
+  static Future<Map<String, dynamic>> fetchRecipeData(String recipeName) async {
+    final url = Uri.parse("https://api.openai.com/v1/chat/completions");
+
+    final response = await http.post(
+      url,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $_apiKey",
+      },
+      body: jsonEncode({
+        "model": "gpt-3.5-turbo",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Return ONLY valid JSON. No explanation."
+          },
+          {
+            "role": "user",
+            "content": """
+Generate recipe details for "$recipeName" in JSON only.
+
+{
+  "description": "short description",
+  "nutrition": {
+    "calories": "215 kcal",
+    "protein": "30g",
+    "carbs": "65g",
+    "fat": "46g"
+  },
+  "cookware": ["Pan", "Bowl"],
+  "steps": ["Step 1", "Step 2"],
+  "similar_recipes": ["Recipe A", "Recipe B"]
+}
+"""
+          }
+        ],
+        "temperature": 0.5
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception("GPT API failed: ${response.body}");
+    }
+
+    final data = jsonDecode(response.body);
+    return jsonDecode(data["choices"][0]["message"]["content"]);
+  }
+}

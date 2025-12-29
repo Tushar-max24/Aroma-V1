@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/recipe_model.dart';
 import '../../state/home_provider.dart';
+import 'cached_image.dart';
 
 class PopularRecipeTile extends StatelessWidget {
   const PopularRecipeTile({super.key, required this.recipe, this.isLarge = false});
@@ -22,10 +23,10 @@ class PopularRecipeTile extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            Image.network(
-              recipe.image,
+            CachedImage(
+              imageUrl: recipe.image,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
+              errorWidget:
                   Container(color: Colors.grey[300]),
             ),
             Container(

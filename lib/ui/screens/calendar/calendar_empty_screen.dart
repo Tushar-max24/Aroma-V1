@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flavoryx/ui/screens/home/home_screen.dart';
+import 'package:flavoryx/core/theme/app_colors.dart';
+import '../../../widgets/cached_image.dart';
 import 'package:flavoryx/ui/screens/add_ingredients/ingredient_entry_screen.dart';
 import 'package:flavoryx/ui/screens/profile/profile_screen.dart';
+import 'package:flavoryx/ui/screens/home/home_screen.dart';
 import 'select_ingredients_screen.dart';
 import '../../../core/enums/scan_mode.dart';
 
@@ -41,8 +43,8 @@ class CalendarEmptyScreen extends StatelessWidget {
                 children: [
                   SizedBox(
                     height: 220,
-                    child: Image.network(
-                      'https://cdn-icons-png.flaticon.com/512/2921/2921822.png',
+                    child: CachedImage(
+                      imageUrl: 'https://cdn-icons-png.flaticon.com/512/2921/2921822.png',
                       fit: BoxFit.contain,
                     ),
                   ),

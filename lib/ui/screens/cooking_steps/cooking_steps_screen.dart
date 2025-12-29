@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../../core/utils/extreme_spring_physics.dart';
 import 'step_ingredients_bottomsheet.dart';
 import 'step_timer_bottomsheet.dart';
 import '../completion/completion_screen.dart';
@@ -141,6 +142,10 @@ Widget _buildDefaultIngredientIcon() {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
+          physics: ExtremeSpringPhysics(
+            springStrength: 1000.0, // Very strong spring
+            damping: 12.0, // Slight damping for more bounce
+          ),
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

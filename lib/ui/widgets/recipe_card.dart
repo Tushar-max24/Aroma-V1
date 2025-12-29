@@ -5,6 +5,7 @@ import '../screens/add_ingredients/capture_preview_screen.dart';
 import '../../data/models/recipe_model.dart';
 import '../../state/home_provider.dart';
 import '../../core/enums/scan_mode.dart';
+import 'cached_image.dart'; // Added import statement
 
 
 class RecipeCard extends StatelessWidget {
@@ -22,15 +23,15 @@ class RecipeCard extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
-            // Background image from backend URL
+            // Background image from backend URL with caching
             ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: Image.network(
-                recipe.image,
+              child: CachedImage(
+                imageUrl: recipe.image,
                 fit: BoxFit.cover,
                 width: double.infinity,
                 height: double.infinity,
-                errorBuilder: (_, __, ___) => Container(color: Colors.grey[300]),
+                errorWidget: Container(color: Colors.grey[300]),
               ),
             ),
 

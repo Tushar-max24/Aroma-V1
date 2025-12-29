@@ -7,7 +7,7 @@ class GeminiRecipeService {
     // Currently just a placeholder to satisfy the call in main.dart
   }
 
-  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxxx";
+  static const String _apiKey = "xxxxxxxxxxxxxxxxx";
 
   static String _extractFirstJsonObject(String text) {
     var cleaned = text.replaceAll('```json', '').replaceAll('```', '').trim();
@@ -69,7 +69,6 @@ Return ONLY a valid JSON object. No markdown.
   ],
   "similar_recipes": ["Recipe A", "Recipe B"]
 }
-
 """
                 }
               ]

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../recipe_detail/recipe_detail_screen.dart';
+import '../../../widgets/cached_image.dart'; // Add this line
 
 
 // =====================================================================
@@ -341,14 +342,14 @@ class _RecipeCard extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
-  child: data.image.isNotEmpty
-      ? Image.network(
-          data.image,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _loadingPlaceholder(),
-        )
-      : _loadingPlaceholder(),
-),
+              child: data.image.isNotEmpty
+                  ? CachedImage(
+                      imageUrl: data.image,
+                      fit: BoxFit.cover,
+                      errorWidget: _loadingPlaceholder(),
+                    )
+                  : _loadingPlaceholder(),
+            ),
 
             Positioned.fill(
               child: Container(

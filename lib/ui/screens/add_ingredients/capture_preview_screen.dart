@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dart:typed_data';
 
 import '../../../core/theme/app_colors.dart';
 import 'review_ingredients_screen.dart';
@@ -8,8 +10,7 @@ import '../../../data/services/scan_bill_service.dart';
 import '../../../core/enums/scan_mode.dart';
 import '../../../data/services/pantry_add_service.dart';
 import '../pantry/review_items_screen.dart';
-
-
+import '../pantry/pantry_search_add_screen.dart';
 
 class CapturePreviewScreen extends StatefulWidget {
   final ScanMode mode;
@@ -58,46 +59,137 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
   }
 
   Future<void> _openGallery() async {
-  try {
-    final XFile? file =
-        await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null || !mounted) return;
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+      
+      final XFile? file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85, // Compress image to 85% quality
+        maxWidth: 1920,   // Limit max width
+        maxHeight: 1920,  // Limit max height
+      );
+      
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+      
+      if (file == null || !mounted) return;
 
-    final scanResult =
-        await ScanBillService().scanBill(file);
+      debugPrint("📸 Gallery image selected: ${file.path}");
 
-    if (widget.mode == ScanMode.cooking) {
+      try {
+        // Show scanning loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+        
+        final scanResult = await ScanBillService().scanBill(file);
+        
+        // Close scanning dialog
+        if (mounted) Navigator.of(context).pop();
+        
+        if (widget.mode == ScanMode.cooking) {
+          if (mounted) Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReviewIngredientsScreen(
+                capturedImage: file,
+                scanResult: scanResult,
+              ),
+            ),
+          );
+        } else {
+          // 🧺 PANTRY FLOW - Use same review screen but with pantry mode
+          if (mounted) Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReviewIngredientsScreen(
+                capturedImage: file,
+                scanResult: scanResult,
+                mode: ScanMode.pantry,
+              ),
+            ),
+          );
+        }
+      } catch (scanError) {
+        // Close scanning dialog if open
+        if (mounted) Navigator.of(context).pop();
+        
+        debugPrint("❌ Gallery scan failed: $scanError");
+        if (mounted) {
+          // Show dialog with options
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Scanning Failed'),
+              content: const Text('This image couldn\'t be scanned. Would you like to:'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                  },
+                  child: const Text('Try Camera'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close dialog
+                    _navigateToManualEntry(); // Go to manual entry
+                  },
+                  child: const Text('Enter Manually'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Close loading dialog if open
+      if (mounted) Navigator.of(context).pop();
+      
+      debugPrint("❌ Gallery selection failed: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to select image. Please try again.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _navigateToManualEntry() {
+    if (widget.mode == ScanMode.pantry) {
+      // Navigate to pantry search add screen for manual entry
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ReviewIngredientsScreen(
-            capturedImage: file,
-            scanResult: scanResult,
-          ),
+          builder: (context) => const PantrySearchAddScreen(),
         ),
       );
     } else {
-      final rawText = scanResult["raw_text"];
-      final pantryResult =
-          await PantryAddService().processRawText(rawText);
-
-      final items =
-          pantryResult["ingredients_with_quantity"];
-
+      // Navigate to cooking ingredient entry
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ReviewItemsScreen(
-            items: List<Map<String, dynamic>>.from(items),
+          builder: (context) => const ReviewIngredientsScreen(
+            capturedImage: null,
+            scanResult: null,
           ),
         ),
       );
     }
-  } catch (e) {
-    debugPrint("Gallery scan failed: $e");
   }
-}
-
 
   @override
   void initState() {
@@ -189,48 +281,38 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
                             /// Capture button
                             GestureDetector(
                               onTap: () async {
-  final XFile? image = await _captureImage();
-  if (image == null || !mounted) return;
+                                final XFile? image = await _captureImage();
+                                if (image == null || !mounted) return;
 
-  final scanResult =
-      await ScanBillService().scanBill(image);
+                                final scanResult = await ScanBillService().scanBill(image);
 
-  // 🔀 FLOW DECISION BASED ON MODE
-  if (widget.mode == ScanMode.cooking) {
-    // 🍳 COOKING FLOW
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReviewIngredientsScreen(
-          capturedImage: image,
-          scanResult: scanResult,
-        ),
-      ),
-    );
-  } else {
-    // 🧺 PANTRY FLOW
-    final rawText = scanResult["raw_text"];
-
-    final pantryResult =
-        await PantryAddService().processRawText(rawText);
-
-    final items =
-        pantryResult["ingredients_with_quantity"];
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ReviewItemsScreen(
-          items: List<Map<String, dynamic>>.from(items),
-        ),
-      ),
-    );
-  }
-},
-
-
+                                // 🔀 FLOW DECISION BASED ON MODE
+                                if (widget.mode == ScanMode.cooking) {
+                                  // 🍳 COOKING FLOW - Use existing review screen
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ReviewIngredientsScreen(
+                                        capturedImage: image,
+                                        scanResult: scanResult,
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  // 🧺 PANTRY FLOW - Use same review screen but with pantry mode
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ReviewIngredientsScreen(
+                                        capturedImage: image,
+                                        scanResult: scanResult,
+                                        mode: ScanMode.pantry,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
                               child: Container(
-                                width: 84,
                                 height: 84,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,

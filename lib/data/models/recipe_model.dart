@@ -6,6 +6,11 @@ class RecipeModel {
   final String cookTime;
   final String image;
   final bool isSaved;
+  final String? description;
+  final int servings;
+  final int calories;
+  final List<String> ingredients;
+  final List<String> instructions;
 
   RecipeModel({
     required this.id,
@@ -14,7 +19,13 @@ class RecipeModel {
     required this.cookTime,
     required this.image,
     this.isSaved = false,
-  });
+    this.description,
+    this.servings = 1,
+    this.calories = 0,
+    List<String>? ingredients,
+    List<String>? instructions,
+  }) : ingredients = ingredients ?? [],
+       instructions = instructions ?? [];
 
   factory RecipeModel.fromJson(Map<String, dynamic> json) {
     return RecipeModel(
@@ -24,6 +35,11 @@ class RecipeModel {
       cookTime: json['cookTime']?.toString() ?? 'N/A',
       image: json['image'] ?? '',
       isSaved: json['isSaved'] ?? false,
+      description: json['description'],
+      servings: (json['servings'] as num?)?.toInt() ?? 1,
+      calories: (json['calories'] as num?)?.toInt() ?? 0,
+      ingredients: List<String>.from(json['ingredients'] ?? []),
+      instructions: List<String>.from(json['instructions'] ?? []),
     );
   }
 
@@ -34,6 +50,11 @@ class RecipeModel {
     String? cookTime,
     String? image,
     bool? isSaved,
+    String? description,
+    int? servings,
+    int? calories,
+    List<String>? ingredients,
+    List<String>? instructions,
   }) {
     return RecipeModel(
       id: id ?? this.id,
@@ -42,6 +63,11 @@ class RecipeModel {
       cookTime: cookTime ?? this.cookTime,
       image: image ?? this.image,
       isSaved: isSaved ?? this.isSaved,
+      description: description ?? this.description,
+      servings: servings ?? this.servings,
+      calories: calories ?? this.calories,
+      ingredients: ingredients ?? this.ingredients,
+      instructions: instructions ?? this.instructions,
     );
   }
 
@@ -53,6 +79,11 @@ class RecipeModel {
       'cookTime': cookTime,
       'image': image,
       'isSaved': isSaved,
+      'description': description,
+      'servings': servings,
+      'calories': calories,
+      'ingredients': ingredients,
+      'instructions': instructions,
     };
   }
 }

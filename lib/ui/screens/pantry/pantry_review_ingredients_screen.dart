@@ -10,11 +10,13 @@ import '../../../data/services/pantry_add_service.dart';
 enum ReviewState { confirm, scanning, failed }
 
 class PantryReviewIngredientsScreen extends StatefulWidget {
-  final XFile capturedImage;
+  final XFile? capturedImage;
+  final List<Map<String, dynamic>>? items;
 
   const PantryReviewIngredientsScreen({
     super.key,
-    required this.capturedImage,
+    this.capturedImage,
+    this.items,
   });
 
   @override
@@ -32,7 +34,7 @@ class _PantryReviewIngredientsScreenState
     switch (_state) {
       case ReviewState.confirm:
         return _ConfirmPhotoView(
-          imagePath: widget.capturedImage.path,
+          imagePath: widget.capturedImage?.path ?? '',
           onConfirm: _processImage,
           onRetake: () => Navigator.pop(context),
         );
@@ -54,10 +56,12 @@ class _PantryReviewIngredientsScreenState
     setState(() => _state = ReviewState.scanning);
 
     try {
-      final imageBytes = await widget.capturedImage.readAsBytes();
+      final imageBytes = widget.capturedImage != null 
+          ? await widget.capturedImage!.readAsBytes()
+          : null;
 
       final result = await _pantryService.processRawText(
-        String.fromCharCodes(imageBytes),
+        imageBytes != null ? String.fromCharCodes(imageBytes) : '',
       );
 
       if (!mounted) return;

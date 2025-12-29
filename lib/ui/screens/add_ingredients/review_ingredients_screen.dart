@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../widgets/cached_image.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -12,6 +13,8 @@ import '../../../core/enums/scan_mode.dart';
 import '../../../widgets/primary_button.dart';
 import 'review_ingredients_list_screen.dart';
 import '../../../data/services/scan_bill_service.dart';
+import '../../../data/services/pantry_add_service.dart';
+import '../pantry/review_items_screen.dart';
 
 enum ReviewState { confirm, scanning, failed }
 
@@ -26,6 +29,8 @@ class ReviewIngredientsScreen extends StatefulWidget {
     this.scanResult,
     this.mode = ScanMode.cooking,
   });
+
+  
 
   @override
   State<ReviewIngredientsScreen> createState() =>
@@ -50,12 +55,82 @@ class _ReviewIngredientsScreenState extends State<ReviewIngredientsScreen> {
 
         if (!mounted) return;
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ReviewIngredientsListScreen(scanResult: result),
-          ),
-        );
+        if (widget.mode == ScanMode.pantry) {
+          // PANTRY FLOW - Process and route to pantry review
+          debugPrint(" PANTRY MODE - Raw scan result: $result");
+          
+          final rawText = result["raw_text"];
+          debugPrint(" PANTRY MODE - Raw text: $rawText");
+          
+          try {
+            final pantryResult = await PantryAddService().processRawText(rawText);
+            debugPrint(" PANTRY MODE - Pantry result: $pantryResult");
+            
+            final items = pantryResult["ingredients_with_quantity"];
+            debugPrint(" PANTRY MODE - Items extracted: $items");
+
+            if (!mounted) return;
+            
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ReviewItemsScreen(
+                  items: List<Map<String, dynamic>>.from(items),
+                ),
+              ),
+            );
+          } catch (e) {
+            debugPrint(" PANTRY MODE - Processing error: $e");
+            
+            // Fallback: Try to extract ingredients directly from scan result
+            try {
+              final List<Map<String, dynamic>> fallbackItems = [];
+              
+              // Check if scan result has ingredients data directly
+              if (result.containsKey("ingredients_with_quantity")) {
+                final ingredients = result["ingredients_with_quantity"];
+                if (ingredients is List) {
+                  for (var item in ingredients) {
+                    if (item is Map && item.containsKey("item")) {
+                      fallbackItems.add({
+                        "item": item["item"] ?? "Unknown",
+                        "quantity": item["quantity"] ?? 1,
+                        "unit": item["unit"] ?? "pcs",
+                      });
+                    }
+                  }
+                }
+              }
+              
+              debugPrint(" PANTRY MODE - Fallback items: $fallbackItems");
+              
+              if (fallbackItems.isNotEmpty && mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReviewItemsScreen(
+                      items: fallbackItems,
+                    ),
+                  ),
+                );
+              } else {
+                if (!mounted) return;
+                setState(() => _state = ReviewState.failed);
+              }
+            } catch (fallbackError) {
+              debugPrint(" PANTRY MODE - Fallback also failed: $fallbackError");
+              if (!mounted) return;
+              setState(() => _state = ReviewState.failed);
+            }
+          }
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReviewIngredientsListScreen(scanResult: result),
+            ),
+          );
+        }
       } catch (e) {
         setState(() => _state = ReviewState.failed);
       }
@@ -140,13 +215,12 @@ class _ConfirmPhotoView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16.0),
                   child: capturedImage != null
                       ? kIsWeb
-                          ? Image.network(
-                              capturedImage!.path,
+                          ? CachedImage(
+                              imageUrl: capturedImage!.path,
                               fit: BoxFit.cover,
                               height: double.infinity,
                               width: double.infinity,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  _plainFallbackImage(),
+                              errorWidget: _plainFallbackImage(),
                             )
                           : Image.file(
                               File(capturedImage!.path),
@@ -255,10 +329,10 @@ class _ScanningView extends StatelessWidget {
           Positioned.fill(
             child: capturedImage != null
                 ? kIsWeb
-                    ? Image.network(
-                        capturedImage!.path,
+                    ? CachedImage(
+                        imageUrl: capturedImage!.path,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => _buildFallbackImage(),
+                        errorWidget: _buildFallbackImage(),
                       )
                     : Image.file(
                         File(capturedImage!.path),

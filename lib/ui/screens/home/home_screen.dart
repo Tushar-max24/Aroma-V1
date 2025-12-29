@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/physics.dart';
+import 'dart:math' as math;
+import '../../../data/models/recipe_model.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../state/home_provider.dart';
@@ -14,6 +18,117 @@ import '../calendar/calendar_empty_screen.dart';
 import '../pantry/pantry_empty_screen.dart';
 import '../pantry/pantry_root_screen.dart';
 import '../../../core/enums/scan_mode.dart';
+import 'recipe_detail_screen.dart';
+import '../../../widgets/primary_button.dart';
+
+class ElasticScrollPhysics extends ScrollPhysics {
+  const ElasticScrollPhysics({ScrollPhysics? parent}) : super(parent: parent);
+
+  @override
+  ElasticScrollPhysics applyTo(ScrollPhysics? ancestor) {
+    return ElasticScrollPhysics(parent: buildParent(ancestor));
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    // Apply elastic resistance when overscrolling
+    if (position.outOfRange) {
+      final double overscrollPastStart = math.max(0.0, position.minScrollExtent - position.pixels);
+      final double overscrollPastEnd = math.max(0.0, position.pixels - position.maxScrollExtent);
+      final double overscrollDistance = overscrollPastStart > 0 ? overscrollPastStart : overscrollPastEnd;
+      final double stiffness = 0.12; // Reduced for more elastic feel
+      final double resistance = stiffness * overscrollDistance;
+      return offset * (1.0 - resistance);
+    }
+    return offset;
+  }
+
+  @override
+  bool shouldAcceptUserOffset(ScrollMetrics position) {
+    return true;
+  }
+
+  @override
+  double carryMomentumVelocity(ScrollMetrics position, double velocity) {
+    // Add slight bounce effect with reduced momentum
+    return velocity * 0.85;
+  }
+
+  @override
+  Simulation? createBallisticSimulation(ScrollMetrics position, double velocity) {
+    if (position.outOfRange) {
+      // Create elastic bounce simulation when out of range
+      return _ElasticBounceSimulation(
+        position: position.pixels,
+        velocity: velocity,
+        leadingExtent: position.minScrollExtent,
+        trailingExtent: position.maxScrollExtent,
+        spring: const SpringDescription(
+          mass: 0.5,
+          stiffness: 400.0,
+          damping: 4.0,
+        ),
+      );
+    }
+    return super.createBallisticSimulation(position, velocity);
+  }
+}
+
+class _ElasticBounceSimulation extends Simulation {
+  final double position;
+  final double velocity;
+  final double leadingExtent;
+  final double trailingExtent;
+  final SpringDescription spring;
+
+  _ElasticBounceSimulation({
+    required this.position,
+    required this.velocity,
+    required this.leadingExtent,
+    required this.trailingExtent,
+    required this.spring,
+  });
+
+  late final SpringSimulation _springSimulation;
+  bool _isInitialized = false;
+
+  void _initialize() {
+    if (_isInitialized) return;
+    
+    final double target = position < leadingExtent 
+        ? leadingExtent 
+        : position > trailingExtent 
+            ? trailingExtent 
+            : position;
+    
+    final double distance = position - target;
+    _springSimulation = SpringSimulation(
+      spring,
+      position,
+      target,
+      velocity * 0.5, // Reduce velocity for gentler bounce
+    );
+    _isInitialized = true;
+  }
+
+  @override
+  double x(double time) {
+    _initialize();
+    return _springSimulation.x(time);
+  }
+
+  @override
+  double dx(double time) {
+    _initialize();
+    return _springSimulation.dx(time);
+  }
+
+  @override
+  bool isDone(double time) {
+    _initialize();
+    return _springSimulation.isDone(time);
+  }
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -27,25 +142,295 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final ScrollController _scrollController = ScrollController();
-  final PageController _pageController = PageController(viewportFraction: 0.8);
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  late final PageController _pageController;
+  late final AnimationController _buttonController;
+  late final Animation<double> _buttonAnimation;
+  late final ScrollController _scrollController;
+  
+  double _currentPage = 0.0;
+  final double _cardAspectRatio = 0.85;
+  final double _cardPadding = 20.0;
   bool _showAllCategories = false;
   int _visibleRecipeCount = 2;
-  int _currentPage = 0;
 
   @override
+  void initState() {
+    super.initState();
+    
+    _pageController = PageController(
+      viewportFraction: 0.85,
+      initialPage: 0,
+    )..addListener(_onPageChanged);
+    
+    _scrollController = ScrollController()
+      ..addListener(_onScrollChanged);
+    
+    _buttonController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    
+    _buttonAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _buttonController,
+      curve: Curves.easeOutCubic,
+    ));
+    
+    _buttonController.repeat(reverse: true);
+  }
+  
+  void _onPageChanged() {
+    setState(() {
+      _currentPage = _pageController.page ?? 0.0;
+    });
+  }
+  
+  void _onScrollChanged() {
+    // When user scrolls to top, shrink the grid back to 2 cards
+    if (_scrollController.offset <= 50 && _showAllCategories) {
+      setState(() {
+        _showAllCategories = false;
+        _visibleRecipeCount = 2;
+      });
+    }
+  }
+  
+  @override
   void dispose() {
-    _scrollController.dispose();
+    _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
+    _scrollController.removeListener(_onScrollChanged);
+    _scrollController.dispose();
+    _buttonController.dispose();
     super.dispose();
+  }
+
+  // Custom scroll physics for smooth scrolling
+  final _scrollPhysics = const BouncingScrollPhysics(
+    parent: AlwaysScrollableScrollPhysics(),
+  );
+
+  Widget _buildRecipeCarousel() {
+    return SizedBox(
+      height: 360.0,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is ScrollUpdateNotification) {
+            if (!_pageController.position.isScrollingNotifier.value) {
+              _pageController.position.isScrollingNotifier.value = true;
+            }
+          } else if (notification is ScrollEndNotification) {
+            _pageController.position.isScrollingNotifier.value = false;
+          }
+          return true;
+        },
+        child: PageView.builder(
+          controller: _pageController,
+          itemCount: Provider.of<HomeProvider>(context, listen: false).recipes.length,
+          physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics(),
+          ),
+          padEnds: false,
+          onPageChanged: (index) {
+            setState(() {
+              _currentPage = index.toDouble();
+            });
+          },
+          itemBuilder: (context, index) {
+            return _buildRecipeCard(Provider.of<HomeProvider>(context, listen: false).recipes[index], index);
+          },
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildPageIndicator() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List<Widget>.generate(
+          Provider.of<HomeProvider>(context, listen: false).recipes.length,
+          (index) => AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: _currentPage.round() == index ? 24.0 : 8.0,
+            height: 8.0,
+            margin: const EdgeInsets.symmetric(horizontal: 4.0),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4.0),
+              color: _currentPage.round() == index 
+                  ? Theme.of(context).primaryColor 
+                  : Colors.grey[300],
+              boxShadow: _currentPage.round() == index
+                  ? [
+                      BoxShadow(
+                        color: Theme.of(context).primaryColor.withOpacity(0.3),
+                        blurRadius: 8.0,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRecipeCard(RecipeModel recipe, int index) {
+    final double pageOffset = index - _currentPage;
+    final double scaleFactor = 0.9 + (0.1 * (1 - pageOffset.abs()));
+    final double opacity = (1 - (pageOffset.abs() * 0.5)).clamp(0.2, 1.0);
+    
+    return AnimatedBuilder(
+      animation: _pageController,
+      builder: (context, child) {
+        final double rotation = pageOffset * 0.03;
+        final double offsetX = pageOffset * 30;
+        
+        return Transform(
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.001) // Perspective
+            ..rotateY(rotation)
+            ..scale(scaleFactor),
+          alignment: pageOffset > 0 ? Alignment.centerLeft : Alignment.centerRight,
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.translate(
+              offset: Offset(offsetX, 0),
+              child: child,
+            ),
+          ),
+        );
+      },
+      child: GestureDetector(
+        onTap: () => _navigateToRecipeDetail(recipe),
+        child: Hero(
+          tag: 'recipe_${recipe.id}',
+          child: RecipeCard(
+            recipe: recipe,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _navigateToRecipeDetail(RecipeModel recipe) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecipeDetailScreen(recipeId: recipe.id),
+      ),
+    );
+  }
+
+  Widget _buildLoadMoreButton() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: ElevatedButton(
+        onPressed: _loadMoreRecipes,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).primaryColor,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: const Text('Load More'),
+      ),
+    );
+  }
+
+  Future<void> _loadMoreRecipes() async {
+    // Implement your recipe loading logic here
+    // For example:
+    // await Provider.of<HomeProvider>(context, listen: false).loadMoreRecipes();
+  }
+
+  Widget _buildShowMoreButton() {
+    return AnimatedBuilder(
+      animation: _buttonAnimation,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, _buttonAnimation.value * 4 - 2), // Subtle bounce effect
+          child: child,
+        );
+      },
+      child: MouseRegion(
+        onEnter: (_) => _buttonController.stop(),
+        onExit: (_) => _buttonController.repeat(reverse: true),
+        child: GestureDetector(
+          onTapDown: (_) => _buttonController.stop(),
+          onTapCancel: () => _buttonController.repeat(reverse: true),
+          onTap: () {
+            _buttonController.repeat(reverse: true);
+            _loadMoreRecipes();
+          },
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 24.0),
+            height: 56.0,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).primaryColor,
+                  Theme.of(context).primaryColorDark,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(28.0),
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(context).primaryColor.withOpacity(0.3),
+                  blurRadius: 12.0,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Discover More Recipes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.0,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 8.0),
+                AnimatedBuilder(
+                  animation: _buttonAnimation,
+                  builder: (context, child) {
+                    return Transform.rotate(
+                      angle: _buttonAnimation.value * 0.2 - 0.1, // Subtle wiggle
+                      child: child,
+                    );
+                  },
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 20.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context, listen: false);
+    final theme = Theme.of(context);
     
-    // Redirect to login if not authenticated
     if (!authService.isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.of(context).pushAndRemoveUntil(
@@ -60,14 +445,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Consumer<HomeProvider>(
       builder: (BuildContext context, HomeProvider provider, _) {
-        // Show loading indicator only on initial load
         if (provider.isLoading && provider.recipes.isEmpty) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
         
-        // Show error if any
         if (provider.error != null && provider.recipes.isEmpty) {
           return Scaffold(
             body: Center(
@@ -111,6 +494,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: CustomScrollView(
                   controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: ElasticScrollPhysics(),
+                  ),
                   slivers: <Widget>[
                     SliverToBoxAdapter(
                       child: Column(
@@ -193,28 +579,41 @@ class _HomeScreenState extends State<HomeScreen> {
                           const SizedBox(height: 16),
                           Builder(
                             builder: (BuildContext context) {
-                              final double screenWidth = MediaQuery.of(context).size.width;
-                              final double cardWidth = screenWidth * 0.8;
-                              final double cardHeight = cardWidth * 3 / 2;
+                              final double screenWidth =
+                                  MediaQuery.of(context).size.width;
+                              final double cardWidth =
+                                  screenWidth * _pageController.viewportFraction;
+                              final double cardHeight =
+                                  cardWidth * 3 / 2; // 3:2 ratio for old card design
 
                               return SizedBox(
                                 height: cardHeight,
                                 child: PageView.builder(
                                   controller: _pageController,
                                   itemCount: provider.recipes.length,
-                                  physics: const BouncingScrollPhysics(),
+                                  physics: const AlwaysScrollableScrollPhysics(
+                                    parent: ClampingScrollPhysics(),
+                                  ),
+                                  pageSnapping: true,
+                                  padEnds: false,
                                   onPageChanged: (int index) {
                                     setState(() {
-                                      _currentPage = index;
+                                      _currentPage = index.toDouble();
                                     });
                                   },
-                                  itemBuilder: (BuildContext context, int index) {
+                                  itemBuilder:
+                                      (BuildContext context, int index) {
                                     final recipe = provider.recipes[index];
                                     return Padding(
-                                      padding: const EdgeInsets.only(right: 12),
+                                      padding:
+                                          const EdgeInsets.only(right: 12),
                                       child: AnimatedScale(
-                                        duration: const Duration(milliseconds: 200),
-                                        scale: index == _currentPage ? 1.0 : 0.92,
+                                        duration: const Duration(
+                                            milliseconds: 30),
+                                        curve: Curves.easeOut,
+                                        scale: index == _currentPage
+                                            ? 1.0
+                                            : 0.98,
                                         child: SizedBox(
                                           width: cardWidth,
                                           height: cardHeight,
@@ -230,6 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                             },
                           ),
+                          _buildPageIndicator(),
                           const SizedBox(height: 24),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,

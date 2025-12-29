@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../../core/utils/extreme_spring_physics.dart';
 import 'ingredient_section.dart';
 import 'cookware_section.dart';
 import 'preparation_section.dart';
@@ -10,6 +13,7 @@ import '../../../data/services/api_client.dart';
 import '../../../state/pantry_state.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/gemini_recipe_service.dart';
+import '../../../widgets/cached_image.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final String image;
@@ -265,17 +269,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       bottomNavigationBar: _bottomButton(),
       body: CustomScrollView(
         controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
+        physics: ExtremeSpringPhysics(
+            springStrength: 1200.0, // Very strong spring for extreme effect
+            damping: 10.0, // Minimal damping for maximum bounce
+          ),
         slivers: [
           SliverAppBar(
             expandedHeight: 420,
             elevation: 0,
             backgroundColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
-              background: Image.network(
-                widget.image,
+              background: CachedImage(
+                imageUrl: widget.image,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
+                errorWidget:
                     Container(color: Colors.grey[300]),
               ),
             ),

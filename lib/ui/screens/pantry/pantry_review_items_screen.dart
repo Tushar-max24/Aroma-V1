@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
+import 'dart:async';
 
 import '../../../data/models/ingredient_model.dart';
+import '../../../data/services/pantry_add_service.dart';
 import '../../../widgets/primary_button.dart';
 import '../../../state/pantry_state.dart';
-
+import '../../../core/enums/scan_mode.dart';
 
 class PantryReviewItemsScreen extends StatefulWidget {
   final List<Map<String, dynamic>> items;
@@ -16,8 +18,7 @@ class PantryReviewItemsScreen extends StatefulWidget {
   });
 
   @override
-  State<PantryReviewItemsScreen> createState() =>
-      _PantryReviewItemsScreenState();
+  State<PantryReviewItemsScreen> createState() => _PantryReviewItemsScreenState();
 }
 
 class _PantryReviewItemsScreenState extends State<PantryReviewItemsScreen> {
@@ -44,25 +45,49 @@ class _PantryReviewItemsScreenState extends State<PantryReviewItemsScreen> {
     return name
         .toLowerCase()
         .replaceAll(RegExp(r'^w\s+'), '') // remove "W "
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+        .replaceAll(RegExp(r'\s+'), ' ');
+  }
+  
+  
+  Future<void> _saveItems() async {
+    try {
+      final pantryService = PantryAddService();
+      final itemsToSave = _ingredients.map((ingredient) {
+        return {
+          'id': ingredient.id,
+          'name': ingredient.name,
+          'quantity': _quantities[ingredient.id ?? ''] ?? 1,
+          'unit': 'pcs', // Default unit
+        };
+      }).toList();
+      
+      final success = await pantryService.saveToPantry(itemsToSave);
+      
+      if (success && mounted) {
+        Navigator.of(context).pop(true); // Return success
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save items: $e')),
+        );
+      }
+    }
   }
 
   void _initializeIngredients() {
     _ingredients = widget.items.map((item) {
-      debugPrint("🧪 REVIEW ITEM RAW: $item"); // 🔥 ADD THIS
       final id = DateTime.now().millisecondsSinceEpoch.toString();
       final quantity = (item['quantity'] as num?)?.toInt() ?? 1;
       final price = (item['price'] as num?)?.toDouble() ?? 0.0;
 
       _quantities[id] = quantity;
-      _priceControllers[id] =
-          TextEditingController(text: price.toStringAsFixed(2));
+      _priceControllers[id] = TextEditingController(text: price.toStringAsFixed(2));
 
       return IngredientModel(
         id: id,
         name: (item['item'] ?? item['name'] ?? 'Unknown Item').toString(),
-        quantity: quantity,
+        quantity: quantity.toDouble(),
         unit: item['unit']?.toString() ?? 'pcs',
         price: price,
       );
@@ -103,75 +128,41 @@ class _PantryReviewItemsScreenState extends State<PantryReviewItemsScreen> {
     }).toList();
   }
 
-  // 🔥 CORE FIX: SAVE TO PANTRY STATE
- // In pantry_review_items_screen.dart, update the _addItemsToPantry method:
-// In pantry_review_items_screen.dart, update the _addItemsToPantry method:
-Future<void> _addItemsToPantry() async {
-  // Add a small delay to ensure the context is valid
-  await Future.delayed(Duration.zero);
-  
-  if (!mounted) return;
-  
-  try {
-    final pantryState = Provider.of<PantryState>(context, listen: false);
-    final items = _getUpdatedItems();
-
-    debugPrint("🧪 ADD TO PANTRY CLICKED: ${items.length} items");
-    debugPrint("📝 Items to save: $items");
-
-    // First save to local state
-    for (final item in items) {
-      final rawName = item['name']?.toString() ?? '';
-      final normalizedName = rawName
-          .toLowerCase()
-          .replaceAll(RegExp(r'^w\s+'), '')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
-
-      final qty = (item['quantity'] as num).toDouble();
-      final unit = item['unit']?.toString() ?? 'pcs';
-
-      debugPrint("💾 Saving to local: name='$normalizedName', qty=$qty, unit=$unit");
-      await pantryState.setItem(normalizedName, qty, unit);
-    }
-
-    // Then save to server
+  Future<void> _addItemsToPantry() async {
     if (!mounted) return;
-    debugPrint("🌐 Attempting to save ${items.length} items to server...");
-    final success = await PantryAddService().saveToPantry(items);
     
-    if (!mounted) return;
+    try {
+      final pantryState = Provider.of<PantryState>(context, listen: false);
+      final items = _getUpdatedItems();
 
-// 🔥 pop ReviewItemsScreen
-Navigator.pop(context);
+      // Save to local state
+      for (final item in items) {
+        final name = item['name']?.toString() ?? '';
+        final quantity = (item['quantity'] as num).toDouble();
+        final unit = item['unit']?.toString() ?? 'pcs';
+        
+        await pantryState.setItem(name, quantity, unit);
+      }
 
-// 🔥 pop ReviewIngredientsScreen
-Navigator.pop(context);
+      // Save to server
+      if (!mounted) return;
+      final success = await PantryAddService().saveToPantry(items);
+      
+      if (!mounted) return;
 
-
-
-// Optional: show warning AFTER navigation
-if (!success && mounted) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text(
-        'Saved locally. Server sync will retry later.',
-      ),
-      duration: Duration(seconds: 3),
-    ),
-  );
-}
-
-  } catch (e, stackTrace) {
-    debugPrint('❌ Error in _addItemsToPantry: $e');
-    debugPrint('Stack trace: $stackTrace');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error: ${e.toString()}'),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      // Navigate back with success
+      Navigator.of(context).pop(success);
+      
+    } catch (e) {
+      debugPrint('Error in _addItemsToPantry: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -180,19 +171,21 @@ if (!success && mounted) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Review Items'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _ingredients.isEmpty
-                ? _buildEmptyState()
-                : _buildIngredientList(),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _addItemsToPantry,
           ),
-          if (_ingredients.isNotEmpty) _buildBottomBar(),
         ],
       ),
+      body: _ingredients.isEmpty
+          ? _buildEmptyState()
+          : _buildIngredientList(),
+      bottomNavigationBar: _ingredients.isNotEmpty ? _buildBottomBar() : null,
     );
   }
 
@@ -205,18 +198,13 @@ if (!success && mounted) {
               size: 72, color: Colors.grey[400]),
           const SizedBox(height: 16),
           const Text(
-            'No items found',
+            'No items to review',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 8),
           const Text(
-            'We couldn\'t find any items in your receipt.',
+            'Add items to get started.',
             style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Go Back'),
           ),
         ],
       ),
@@ -233,7 +221,7 @@ if (!success && mounted) {
         final priceController = _priceControllers[ingredient.id]!;
 
         return Dismissible(
-          key: Key(ingredient.id),
+          key: Key(ingredient.id ?? ''),
           direction: DismissDirection.endToStart,
           background: Container(
             color: Colors.red,
@@ -241,7 +229,7 @@ if (!success && mounted) {
             padding: const EdgeInsets.only(right: 20),
             child: const Icon(Icons.delete, color: Colors.white),
           ),
-          onDismissed: (_) => _removeItem(ingredient.id),
+          onDismissed: (_) => ingredient.id != null ? _removeItem(ingredient.id!) : null,
           child: Card(
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Padding(
@@ -260,13 +248,13 @@ if (!success && mounted) {
                       IconButton(
                         icon: const Icon(Icons.remove),
                         onPressed: () =>
-                            _updateQuantity(ingredient.id, quantity - 1),
+                            ingredient.id != null ? _updateQuantity(ingredient.id!, quantity - 1) : null,
                       ),
                       Text(quantity.toString()),
                       IconButton(
                         icon: const Icon(Icons.add),
                         onPressed: () =>
-                            _updateQuantity(ingredient.id, quantity + 1),
+                            ingredient.id != null ? _updateQuantity(ingredient.id!, quantity + 1) : null,
                       ),
                       const Spacer(),
                       SizedBox(
@@ -295,10 +283,28 @@ if (!success && mounted) {
   Widget _buildBottomBar() {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: SafeArea(
-        child: PrimaryButton(
-          text: 'Add to Pantry',
-          onPressed: _addItemsToPantry, // 🔥 UPDATED
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: _addItemsToPantry,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Theme.of(context).primaryColor,
+          minimumSize: const Size(double.infinity, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        child: const Text(
+          'Add to Pantry',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
     );

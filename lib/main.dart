@@ -2,14 +2,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flavoryx/ui/screens/auth/auth_wrapper.dart';
+import 'package:flavoryx/core/config/app_config.dart';
+import 'package:flavoryx/state/pantry_state.dart';
+import 'package:flavoryx/state/home_provider.dart';
+import 'package:flavoryx/data/services/gemini_recipe_service.dart';
+import 'package:flavoryx/data/services/shopping_list_service.dart';
+import 'package:flavoryx/core/services/auth_service.dart';
 import 'package:flavoryx/ui/screens/auth/login_screen.dart';
-import 'core/config/app_config.dart';
-import 'state/pantry_state.dart';
-import 'state/home_provider.dart';
-import 'data/services/gemini_recipe_service.dart';
-import 'ui/screens/home/home_screen.dart';
-import 'data/services/shopping_list_service.dart';
-
 
 void main() async {
   // Ensure Flutter binding is initialized
@@ -25,10 +25,15 @@ void main() async {
     // Initialize Gemini service
     GeminiRecipeService.initialize();
     
+    // Initialize AuthService
+    final authService = AuthService();
+    
     runApp(
       MultiProvider(
         providers: [
-          // Add all your providers here
+          ChangeNotifierProvider<AuthService>(
+            create: (_) => authService..initialize(),
+          ),
           ChangeNotifierProvider(create: (_) => ShoppingListService()),
           ChangeNotifierProvider(create: (_) => PantryState()..loadPantry()),
           ChangeNotifierProvider(create: (_) => HomeProvider()..loadRecipes()),
@@ -37,7 +42,6 @@ void main() async {
       ),
     );
   } catch (e, stackTrace) {
-    // Enhanced error handling with stack trace
     debugPrint('Error during app initialization: $e');
     debugPrint('Stack trace: $stackTrace');
     
@@ -64,15 +68,6 @@ void main() async {
                     textAlign: TextAlign.center,
                     style: const TextStyle(color: Colors.red),
                   ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                  onPressed: () {
-                    // Restart the app
-                    main();
-                  },
                 ),
               ],
             ),
@@ -106,7 +101,7 @@ class MyApp extends StatelessWidget {
         ),
         // Add other theme configurations here
       ),
-      home: const LoginScreen(),
+      home: const AuthWrapper(),
     );
   }
 }

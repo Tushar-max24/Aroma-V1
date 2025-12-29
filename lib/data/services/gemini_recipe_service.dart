@@ -7,7 +7,7 @@ class GeminiRecipeService {
     // Currently just a placeholder to satisfy the call in main.dart
   }
 
-  static const String _apiKey = "xxxxxxxxxxxxxxxxx";
+  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxxx";
 
   static String _extractFirstJsonObject(String text) {
     var cleaned = text.replaceAll('```json', '').replaceAll('```', '').trim();
@@ -45,7 +45,7 @@ class GeminiRecipeService {
                 {
                   "text": """
 Generate recipe details for "$recipeName" in STRICT JSON format only.
-Return ONLY a valid JSON object. Do NOT wrap in markdown code fences (no ```json).
+Return ONLY a valid JSON object. No markdown.
 
 {
   "description": "2-3 lines",
@@ -56,9 +56,20 @@ Return ONLY a valid JSON object. Do NOT wrap in markdown code fences (no ```json
     "fat": "46g"
   },
   "cookware": ["Pan", "Pressure Cooker"],
-  "steps": ["Step 1", "Step 2", "Step 3"],
+  "steps": [
+    {
+      "instruction": "Heat oil in a pan over medium heat.",
+      "ingredients": [
+        {"item": "Oil", "quantity": "2 tbsp"}
+      ],
+      "tips": [
+        "Do not overheat the oil? Medium heat is enough"
+      ]
+    }
+  ],
   "similar_recipes": ["Recipe A", "Recipe B"]
 }
+
 """
                 }
               ]

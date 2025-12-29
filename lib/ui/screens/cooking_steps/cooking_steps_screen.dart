@@ -115,7 +115,17 @@ Widget _buildDefaultIngredientIcon() {
 
   @override
   Widget build(BuildContext context) {
-    final step = widget.steps[widget.currentStep - 1];
+    if (widget.steps.isEmpty) {
+    return const Scaffold(
+      body: Center(
+        child: Text(
+          'No cooking steps available',
+          style: TextStyle(fontSize: 16),
+        ),
+      ),
+    );
+    }
+  final step = widget.steps[widget.currentStep - 1];
     final String instruction = (step['instruction'] ?? '').toString();
     final List<Map<String, dynamic>> stepIngredients =
         (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList(growable: false) ??
@@ -319,7 +329,9 @@ Widget _buildDefaultIngredientIcon() {
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (context) => StepIngredientsBottomSheet(
-                          stepIngredients: widget.steps[widget.currentStep - 1]['ingredients'] ?? [],
+                          stepIngredients: List<Map<String, dynamic>>.from(
+  widget.steps[widget.currentStep - 1]['ingredients'] ?? [],
+),
                           allIngredients: widget.allIngredients,
                           currentStepIndex: widget.currentStep - 1,
                         ),

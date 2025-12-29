@@ -74,30 +74,45 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _fetchAIData() async {
-    try {
-      final result = await GeminiRecipeService.fetchRecipeData(widget.title);
-      setState(() {
-        aiData = result;
-        _cookwareItems = List<String>.from(result["cookware"] ?? []);
-        _cookingSteps = List<String>.from(result["steps"] ?? [])
-            .where((step) => step != null && step.isNotEmpty)
-            .map((step) => step.toString())
-            .toList();
-        _similarRecipeData =
-            List<String>.from(result["similar_recipes"] ?? [])
-                .where((e) => e != null && e.isNotEmpty)
-                .map((e) => {"title": e.toString()})
-                .toList();
-        aiLoading = false;
-      });
-    } catch (e) {
-      debugPrint('Error fetching recipe data: $e');
-      setState(() {
-        _cookingSteps = [];
-        aiLoading = false;
-      });
-    }
+  try {
+    final result = await GeminiRecipeService.fetchRecipeData(widget.title);
+
+    setState(() {
+      aiData = result;
+
+      _cookwareItems = List<String>.from(result["cookware"] ?? []);
+
+      // FULL STEP DATA (for CookingStepsScreen)
+      _cookingStepsDetailed = List<Map<String, dynamic>>.from(result["steps"] ?? []);
+
+
+
+
+      // PREVIEW TEXT ONLY (for PreparationSection)
+      _cookingSteps = _cookingStepsDetailed
+    .map((e) => (e['instruction'] ?? '').toString())
+    .where((s) => s.trim().isNotEmpty)
+    .toList();
+
+
+
+      _similarRecipeData =
+          List<String>.from(result["similar_recipes"] ?? [])
+              .where((e) => e != null && e.isNotEmpty)
+              .map((e) => {"title": e.toString()})
+              .toList();
+
+      aiLoading = false;
+    });
+  } catch (e) {
+    debugPrint('Error fetching recipe data: $e');
+    setState(() {
+      _cookingSteps = [];
+      _cookingStepsDetailed = [];
+      aiLoading = false;
+    });
   }
+}
 
   Widget _content() {
     final nutrition = aiData?["nutrition"] ?? {};

@@ -356,15 +356,15 @@ itemBuilder: (context, index) {
   }
   
   Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => CookingStepsScreen(
-        steps: stepsToPass,
-        currentStep: 1,
-        allIngredients: ingredients,
-      ),
+  context,
+  MaterialPageRoute(
+    builder: (_) => CookingStepsScreen(
+      steps: steps,              // detailed steps
+      currentStep: 1,
+      allIngredients: ingredients,
     ),
-  );
+  ),
+);
 },
                   child: const Text(
                     "Let's Start",

@@ -1,0 +1,492 @@
+{
+  "recipes": [
+    {
+      "id": "1",
+      "title": "Spiced Chicken Mansaf",
+      "cuisine": "Middle East",
+      "cookTime": 35,
+      "image": "https://images.pexels.com/photos/1234535/pexels-photo-1234535.jpeg",
+      "isSaved": true
+    },
+    {
+      "id": "2",
+      "title": "Crab Masala",
+      "cuisine": "Indian",
+      "cookTime": 40,
+      "image": "https://images.pexels.com/photos/3297807/pexels-photo-3297807.jpeg",
+      "isSaved": false
+    },
+    {
+      "id": "3",
+      "title": "Creme Brulee",
+      "cuisine": "French",
+      "cookTime": 40,
+      "image": "https://images.pexels.com/photos/4109990/pexels-photo-4109990.jpeg",
+      "isSaved": false
+    },
+    {
+      "id": "4",
+      "title": "Chicken Shawarma",
+      "cuisine": "Middle East",
+      "cookTime": 30,
+      "image": "https://images.pexels.com/photos/3218467/pexels-photo-3218467.jpeg",
+      "isSaved": false
+    },
+    {
+      "id": "5",
+      "title": "Mutton Biryani",
+      "cuisine": "Indian",
+      "cookTime": 45,
+      "image": "https://images.pexels.com/photos/5864608/pexels-photo-5864608.jpeg",
+      "isSaved": false
+    }
+  ],
+  "ingredients": [
+    {
+      "id": "1",
+      "emoji": "🧬",
+      "name": "Un Identified",
+      "match": 0
+    },
+    {
+      "id": "2",
+      "emoji": "🥑",
+      "name": "Avocado",
+      "match": 80
+    },
+    {
+      "id": "3",
+      "emoji": "🍌",
+      "name": "Banana",
+      "match": 100
+    },
+    {
+      "id": "4",
+      "emoji": "🥦",
+      "name": "Broccoli",
+      "match": 50
+    },
+    {
+      "id": "5",
+      "emoji": "🫑",
+      "name": "Capsicum",
+      "match": 80
+    },
+    {
+      "id": "6",
+      "emoji": "🥕",
+      "name": "Carrot",
+      "match": 90
+    },
+    {
+      "id": "7",
+      "emoji": "🍒",
+      "name": "Cherry",
+      "match": 90
+    },
+    {
+      "id": "8",
+      "emoji": "🌶",
+      "name": "Red Chilli",
+      "match": 80
+    }
+  ],
+  "cookingSteps": [
+    {
+      "id": "1",
+      "text": "Soak lentils & rajma overnight."
+    },
+    {
+      "id": "2",
+      "text": "Pressure cook with salt for 8–10 whistles."
+    },
+    {
+      "id": "3",
+      "text": "Sauté onion, ginger, garlic & chilies."
+    },
+    {
+      "id": "4",
+      "text": "Add tomato puree, spices & cook until oil separates."
+    },
+    {
+      "id": "5",
+      "text": "Add cooked dal and simmer 25–30 minutes."
+    },
+    {
+      "id": "6",
+      "text": "Add cream, butter & kasuri methi."
+    },
+    {
+      "id": "7",
+      "text": "Smoke with charcoal for restaurant flavor."
+    },
+    {
+      "id": "8",
+      "text": "Serve with naan or jeera rice."
+    }
+  ],
+  "cookingStepsDetailed": [
+    {
+      "id": "1",
+      "instruction": "Soak the whole black lentils (urad dal) and red kidney beans (rajma) overnight for about 8–10 hours. Drain and rinse them well.",
+      "ingredientIds": [
+        "e63b",
+        "95aa"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "2",
+      "instruction": "Pressure cook the soaked lentils and beans with 4 cups of water and salt for 8–10 whistles, or simmer on low heat for 45 minutes until soft and creamy.",
+      "ingredientIds": [
+        "e63b",
+        "95aa"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "3",
+      "instruction": "Heat butter and ghee in a deep pan. Add cumin seeds and let them splutter. Then add finely chopped onions and sauté until golden brown.",
+      "ingredientIds": [
+        "f0da"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "4",
+      "instruction": "Add ginger-garlic paste and slit green chilies; cook until the raw aroma disappears.",
+      "ingredientIds": [
+        "ggp1",
+        "gch1"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "5",
+      "instruction": "Mix in tomato puree, red chili powder, turmeric, and garam masala. Sauté the masala until the oil starts separating from the sides.",
+      "ingredientIds": [
+        "tom1",
+        "rcp1",
+        "tur1",
+        "gar1"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "6",
+      "instruction": "Add the boiled dal and rajma along with some of the cooking liquid. Stir well and simmer on low flame for 25–30 minutes, stirring occasionally to thicken.",
+      "ingredientIds": [
+        "e63b",
+        "95aa"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "7",
+      "instruction": "Add butter, fresh cream, and crushed kasuri methi. Adjust salt and water for the right consistency.",
+      "ingredientIds": [
+        "ac57",
+        "f0da",
+        "f668"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    },
+    {
+      "id": "8",
+      "instruction": "For a smoky flavor, place a small piece of hot charcoal in a steel bowl over the dal, add ½ tsp ghee, cover immediately, and let it smoke for 2–3 minutes before removing. Finally, garnish with cream, butter, and coriander. Serve hot with jeera rice, naan, or paratha.",
+      "ingredientIds": [
+        "a6e4",
+        "ac57"
+      ],
+      "tips": [
+        "Do I need to add water to marinate ?\nNo need to add water.",
+        "Can I add eggs to marinate the chicken?\nyes, you can add 2 eggs"
+      ]
+    }
+  ],
+  "ingredientData": [
+    {
+      "name": "Whole black lentils",
+      "qty": "1 cup (200g)",
+      "icon": "🥣",
+      "id": "e63b"
+    },
+    {
+      "name": "Red kidney beans",
+      "qty": "½ cup (50g)",
+      "icon": "🫘",
+      "id": "95aa"
+    },
+    {
+      "name": "Butter",
+      "qty": "3 tbsp",
+      "icon": "🧈",
+      "id": "f0da"
+    },
+    {
+      "name": "Fresh cream",
+      "qty": "¼ cup",
+      "icon": "🥛",
+      "id": "ac57"
+    },
+    {
+      "name": "Kasuri methi",
+      "qty": "1 tsp",
+      "icon": "🍃",
+      "id": "f668"
+    },
+    {
+      "name": "Charcoal",
+      "qty": "optional",
+      "icon": "🔥",
+      "id": "a6e4"
+    },
+    {
+      "name": "Ginger-garlic paste",
+      "qty": "2 tbsp",
+      "icon": "🧄",
+      "id": "ggp1"
+    },
+    {
+      "name": "Green chilies",
+      "qty": "1–2 pieces",
+      "icon": "🌶",
+      "id": "gch1"
+    },
+    {
+      "name": "Tomato puree",
+      "qty": "1 cup",
+      "icon": "🍅",
+      "id": "tom1"
+    },
+    {
+      "name": "Kashmiri red chilli powder",
+      "qty": "1 tbsp",
+      "icon": "🌶",
+      "id": "rcp1"
+    },
+    {
+      "name": "Turmeric powder",
+      "qty": "½ tsp",
+      "icon": "🟡",
+      "id": "tur1"
+    },
+    {
+      "name": "Garam masala",
+      "qty": "1 tsp",
+      "icon": "🥄",
+      "id": "gar1"
+    }
+  ],
+  "reviewData": [
+    {
+      "name": "Luna",
+      "comment": "Super Delicious 😋🔥",
+      "avatar": "https://randomuser.me/api/portraits/women/1.jpg",
+      "id": "f5fa"
+    },
+    {
+      "name": "Pandi",
+      "comment": "Perfect for winter season! Creamy & rich!",
+      "avatar": "https://randomuser.me/api/portraits/men/41.jpg",
+      "id": "5c96"
+    }
+  ],
+  "similarRecipes": [
+    {
+      "image": "https://images.pexels.com/photos/12751312/pexels-photo-12751312.jpeg",
+      "title": "Baingan Bharta",
+      "tag": "Gen-AI",
+      "type": "Indian",
+      "time": "30–40 min",
+      "cooked": "100",
+      "id": "af3e"
+    },
+    {
+      "image": "https://images.pexels.com/photos/2474661/pexels-photo-2474661.jpeg",
+      "title": "Paneer Butter Masala",
+      "tag": "Gen-AI",
+      "type": "Indian",
+      "time": "30–40 min",
+      "cooked": "100",
+      "id": "cd1b"
+    }
+  ],
+  "cookware": [
+    {
+      "id": "1",
+      "name": "Pressure Cooker"
+    },
+    {
+      "id": "2",
+      "name": "Deep Pan / Kadai"
+    },
+    {
+      "id": "3",
+      "name": "Mixing Bowl"
+    },
+    {
+      "id": "4",
+      "name": "Strainer"
+    },
+    {
+      "id": "5",
+      "name": "Ladle / Spoon"
+    },
+    {
+      "id": "6",
+      "name": "Knife & Cutting Board"
+    },
+    {
+      "id": "7",
+      "name": "Blender / Grinder"
+    },
+    {
+      "id": "8",
+      "name": "Small Bowls"
+    },
+    {
+      "id": "9",
+      "name": "Tongs"
+    },
+    {
+      "id": "10",
+      "name": "Serving Bowl & Spoon"
+    }
+  ],
+  "nutrition": [],
+  "preferences": [
+    {
+      "title": "Meal Type",
+      "items": [
+        "Early Morning /Pre-Breakfast",
+        "Breakfast",
+        "Brunch",
+        "Lunch",
+        "Evening Snack",
+        "Afternoon Snack",
+        "Dinner",
+        "Desserts",
+        "Latentight Snack"
+      ],
+      "id": "d9b3"
+    },
+    {
+      "title": "Dietary Restrictions",
+      "items": [
+        "Vegetarian",
+        "Non- Vegetarian",
+        "Vegan",
+        "Eggetarian",
+        "Keto",
+        "Paleo",
+        "Pescatarian",
+        "Jain",
+        "Lacto Vegetarian",
+        "Gluten Free",
+        "Ovo Vegetarian",
+        "Raw Vegan",
+        "Lacto Ovo Vegetarian",
+        "Flexitarian / Semi Vegetarian",
+        "Plant Based Foods",
+        "Mediterranean"
+      ],
+      "id": "b621"
+    },
+    {
+      "title": "Cookware & Utensils",
+      "items": [
+        "Microwave Oven",
+        "Gas Stoves",
+        "Electric Stove",
+        "Blender",
+        "Induction Cooktops",
+        "Grill",
+        "Frying Pan",
+        "Sandwhich maker",
+        "Bread toaster",
+        "Roasting Pan",
+        "Woks and stir fry pan",
+        "Cooker",
+        "Muffin Tray",
+        "Kettle",
+        "pot",
+        "Double Boiler",
+        "Dutch Oven",
+        "Baking Tray",
+        "Instant Pot",
+        "Steamer",
+        "Pie Dish",
+        "Tawa",
+        "Mixing Bowls",
+        "Grater / Zester",
+        "Vegetable Pealer",
+        "Spatula",
+        "Cutting Board"
+      ],
+      "id": "2319"
+    },
+    {
+      "title": "Cooking Time",
+      "items": [
+        "5 - 10 minutes",
+        "15 minutes",
+        "8 - 12 minutes",
+        "20 minutes",
+        "20 - 25 minutes",
+        "20 - 30 minutes",
+        "30 minutes",
+        "45 minutes",
+        "45 - 60 minutes",
+        "Custom Timing"
+      ],
+      "id": "51a2"
+    },
+    {
+      "title": "Cuisine Preference",
+      "items": [
+        "North Indian",
+        "South Indian",
+        "Chinese",
+        "Japanese",
+        "Korean",
+        "Italian",
+        "Vietnamese",
+        "Indonesian",
+        "Malaysian",
+        "Mexican",
+        "Thai",
+        "Continental",
+        "French",
+        "Lebanese",
+        "Turkish",
+        "Egyptian",
+        "Spanish",
+        "Multicuisine"
+      ],
+      "id": "0141"
+    }
+  ],
+  "reviews": []
+}

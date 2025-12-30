@@ -1,24 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:flavoryx/core/config/app_config.dart';
 
 class GeminiRecipeService {
-  static String? _apiKey;
-  static String? _modelName;
-  static String? _endpoint;
-
-  static Future<void> initialize() async {
-    _apiKey = AppConfig().geminiApiKey;
-    _modelName = AppConfig().geminiModelName;
-    _endpoint = '${AppConfig().geminiEndpoint}$_modelName:generateContent';
+  static void initialize() {
+    // Initialization logic can be added here if needed
+    // Currently just a placeholder to satisfy the call in main.dart
   }
 
-  static String get _apiKeyValue {
-    if (_apiKey == null) {
-      throw Exception('GeminiRecipeService not initialized. Call initialize() first.');
-    }
-    return _apiKey!;
-  }
+  static const String _apiKey = "xxxxxxxxxxxxxxxxx";
 
   static String _extractFirstJsonObject(String text) {
     var cleaned = text.replaceAll('```json', '').replaceAll('```', '').trim();
@@ -42,7 +31,7 @@ class GeminiRecipeService {
 
   static Future<Map<String, dynamic>> fetchRecipeData(String recipeName) async {
     final url = Uri.parse(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKeyValue",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKey",
     );
 
     try {
@@ -111,7 +100,7 @@ Return ONLY a valid JSON object. No markdown.
     int count = 3,
   }) async {
     final url = Uri.parse(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKeyValue",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKey",
     );
 
     try {

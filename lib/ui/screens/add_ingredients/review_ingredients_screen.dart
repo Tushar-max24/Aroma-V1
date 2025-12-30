@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../widgets/cached_image.dart';
-import '../../widgets/scanning_animation_widget.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -327,7 +326,6 @@ class _ScanningView extends StatelessWidget {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Background image
           Positioned.fill(
             child: capturedImage != null
                 ? kIsWeb
@@ -341,11 +339,6 @@ class _ScanningView extends StatelessWidget {
                         fit: BoxFit.cover,
                       )
                 : _buildFallbackImage(),
-          ),
-          
-          // Semi-transparent overlay
-          Container(
-            color: Colors.black.withOpacity(0.4),
           ),
           
           // Back button at top-left
@@ -381,16 +374,24 @@ class _ScanningView extends StatelessWidget {
             ),
           ),
 
-          // Center scanning animation
+          // Center icon
           Center(
-            child: ScanningAnimation(
-              size: 180,
-              primaryColor: Colors.white,
-              scanningText: 'Analyzing ingredients',
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.35),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.search_rounded,
+                size: 40,
+                color: Colors.white,
+              ),
             ),
           ),
 
-          // Scanner Frame Overlay (kept for visual consistency)
+          // Scanner Frame Overlay
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(40, 120, 40, 200),
@@ -402,7 +403,7 @@ class _ScanningView extends StatelessWidget {
           Align(
             alignment: Alignment.bottomCenter,
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 80),
+              padding: const EdgeInsets.only(bottom: 40),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -416,7 +417,6 @@ class _ScanningView extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 8),
                   const Text(
                     'and your pantry will be up to date.',
                     textAlign: TextAlign.center,
@@ -426,26 +426,6 @@ class _ScanningView extends StatelessWidget {
                       fontWeight: FontWeight.w500,
                       height: 1.4,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  // Add a subtle pulsing dot indicator
-                  TweenAnimationBuilder<double>(
-                    tween: Tween(begin: 0.5, end: 1.0),
-                    duration: const Duration(seconds: 1),
-                    curve: Curves.easeInOut,
-                    builder: (context, value, child) {
-                      return Opacity(
-                        opacity: value,
-                        child: Container(
-                          width: 8,
-                          height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      );
-                    },
                   ),
                 ],
               ),

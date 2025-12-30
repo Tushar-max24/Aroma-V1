@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flavoryx/data/services/emoji_service.dart';
 
 // ===============================
 // INGREDIENT SECTION (DYNAMIC)
 // ===============================
-class IngredientSection extends StatefulWidget {
+class IngredientSection extends StatelessWidget {
+  final int servings;
+  final Function(int) onServingChange;
+  final List<Map<String, dynamic>> ingredientData; // scanned bill
+  final List<String> availableIngredients;
+
   const IngredientSection({
     super.key,
     required this.servings,
@@ -12,35 +16,6 @@ class IngredientSection extends StatefulWidget {
     required this.ingredientData,
     this.availableIngredients = const [],
   });
-
-  final int servings;
-  final Function(int) onServingChange;
-  final List<Map<String, dynamic>> ingredientData;
-  final List<String> availableIngredients;
-
-  @override
-  State<IngredientSection> createState() => _IngredientSectionState();
-}
-
-class _IngredientSectionState extends State<IngredientSection> {
-  late final EmojiService _emojiService;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _emojiService = EmojiService();
-    _initializeEmojiService();
-  }
-
-  Future<void> _initializeEmojiService() async {
-    await _emojiService.initialize();
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -60,15 +35,15 @@ class _IngredientSectionState extends State<IngredientSection> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-"${widget.servings} Servings",
+              "$servings Servings",
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
             ),
             IngredientStepper(
-              servings: widget.servings,
-              onChanged: widget.onServingChange,
+              servings: servings,
+              onChanged: onServingChange,
             ),
           ],
         ),
@@ -76,16 +51,16 @@ class _IngredientSectionState extends State<IngredientSection> {
         const SizedBox(height: 22),
 
         Column(
-          children: widget.ingredientData.map((item) {
+          children: ingredientData.map((item) {
             final name = item['item']?.toString() ?? '';
             final qty = item['quantity'] ?? 1;
 
             return IngredientTile(
               name: name,
-              quantity: _formatQuantity(qty, widget.servings),
+              quantity: _formatQuantity(qty, servings),
               icon: _emojiForIngredient(name),
               isAvailable:
-                  widget.availableIngredients.contains(name.toLowerCase()),
+                  availableIngredients.contains(name.toLowerCase()),
             );
           }).toList(),
         ),
@@ -99,13 +74,21 @@ class _IngredientSectionState extends State<IngredientSection> {
   String _formatQuantity(dynamic baseQty, int servings) {
     final num qty =
         baseQty is num ? baseQty : num.tryParse(baseQty.toString()) ?? 1;
-    final totalQty = qty * servings;
-    // Format as integer if it's a whole number, otherwise show 1 decimal place
-    return totalQty % 1 == 0 ? totalQty.toInt().toString() : totalQty.toStringAsFixed(1);
+    return "${qty * servings}";
   }
 
   String _emojiForIngredient(String name) {
-    return _emojiService.getEmojiForIngredient(name) ?? '🥬';
+    final n = name.toLowerCase();
+    if (n.contains("egg")) return "🥚";
+    if (n.contains("tomato")) return "🍅";
+    if (n.contains("onion")) return "🧅";
+    if (n.contains("milk")) return "🥛";
+    if (n.contains("cheese")) return "🧀";
+    if (n.contains("chicken")) return "🍗";
+    if (n.contains("rice")) return "🍚";
+    if (n.contains("oil")) return "🛢️";
+    if (n.contains("salt")) return "🧂";
+    return "🥬";
   }
 }
 
@@ -123,72 +106,49 @@ class IngredientTile extends StatelessWidget {
     required this.name,
     required this.quantity,
     required this.icon,
-    required this.isAvailable,
+    this.isAvailable = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 6,
+          )
+        ],
+      ),
       child: Row(
         children: [
-          // Emoji/Icon
-          Container(
-            width: 60,
-            height: 60,
-            child: Center(
-              child: Text(
-                icon,
-                style: const TextStyle(fontSize: 36, height: 1.0),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Name & Quantity
+          // Icon(
+          //   isAvailable ? Icons.check_circle : Icons.radio_button_unchecked,
+          //   color: isAvailable ? Colors.green : Colors.grey,
+          // ),
+          // const SizedBox(width: 8),
+          Text(icon, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 2),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      const TextSpan(
-                        text: 'Qty: ',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black54,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      TextSpan(
-                        text: quantity,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Colors.black87,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                Text(
+                  "Qty: $quantity",
+                  style: TextStyle(
+                    color: Colors.orange.shade600,
+                    fontSize: 13,
                   ),
                 ),
               ],
-            ),
-          ),
-          // Availability Indicator
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isAvailable ? Colors.green : Colors.grey[400],
-              shape: BoxShape.circle,
             ),
           ),
         ],

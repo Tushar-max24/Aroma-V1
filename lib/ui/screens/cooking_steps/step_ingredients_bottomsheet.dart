@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../data/services/emoji_service.dart';
 
-class StepIngredientsBottomSheet extends StatefulWidget {
+class StepIngredientsBottomSheet extends StatelessWidget {
   final List<Map<String, dynamic>> stepIngredients;
   final List<Map<String, dynamic>>? allIngredients;
   final int? currentStepIndex;
-  bool get showAllIngredients => allIngredients != null;
+  bool get showAllIngredients => allIngredients != null && currentStepIndex != null;
 
   const StepIngredientsBottomSheet({
     super.key,
@@ -14,72 +13,31 @@ class StepIngredientsBottomSheet extends StatefulWidget {
     this.currentStepIndex,
   });
 
-  @override
-  State<StepIngredientsBottomSheet> createState() => _StepIngredientsBottomSheetState();
-}
-
-class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet> {
-  final EmojiService _emojiService = EmojiService();
-  bool _isEmojiInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeEmojiService();
-  }
-
-  Future<void> _initializeEmojiService() async {
-    await _emojiService.initialize();
-    if (mounted) {
-      setState(() {
-        _isEmojiInitialized = true;
-      });
-    }
-  }
-
-  Widget _buildIngredientIcon(String? emoji) {
-    if (emoji != null && emoji.isNotEmpty) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 12),
-        child: Text(
-          emoji,
-          style: const TextStyle(fontSize: 30),
-        ),
+  Widget _buildIngredientIcon(dynamic icon) {
+    if (icon is String && icon.startsWith('assets/')) {
+      return Image.asset(
+        icon,
+        width: 30,
+        height: 30,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(),
       );
     }
     return _buildDefaultIngredientIcon();
   }
 
   Widget _buildDefaultIngredientIcon() {
-    return Padding(
-      padding: const EdgeInsets.only(right: 12),
-      child: Image.asset(
-        'assets/images/pantry/temp_pantry.png',
-        width: 30,
-        height: 30,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
-      ),
+    return Image.asset(
+      'assets/images/pantry/temp_pantry.png',
+      width: 30,
+      height: 30,
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
     );
-  }
-
-  List<Map<String, dynamic>> get _ingredientsToShow {
-    if (widget.showAllIngredients) {
-      // When showing all ingredients, return them directly
-      return widget.allIngredients ?? [];
-    } else {
-      // When showing step-specific ingredients, return them
-      return widget.stepIngredients;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isEmojiInitialized) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final ingredients = _ingredientsToShow;
-    
     return Stack(
       alignment: Alignment.topCenter,
       children: [
@@ -103,13 +61,13 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    widget.showAllIngredients ? "All Ingredients" : "Ingredients for This Step",
+                    showAllIngredients ? "All Ingredients" : "Ingredients for This Step",
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  if (widget.allIngredients != null && widget.currentStepIndex != null)
+                  if (allIngredients != null)
                     TextButton(
                       onPressed: () {
                         // This will trigger a rebuild with the opposite state
@@ -119,14 +77,14 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
                           isScrollControlled: true,
                           backgroundColor: Colors.transparent,
                           builder: (context) => StepIngredientsBottomSheet(
-                            stepIngredients: widget.stepIngredients,
-                            allIngredients: widget.showAllIngredients ? null : widget.allIngredients,
-                            currentStepIndex: widget.showAllIngredients ? widget.currentStepIndex : null,
+                            stepIngredients: stepIngredients,
+                            allIngredients: showAllIngredients ? null : allIngredients,
+                            currentStepIndex: showAllIngredients ? null : currentStepIndex,
                           ),
                         );
                       },
                       child: Text(
-                        widget.showAllIngredients ? "Show This Step Only" : "Show All Ingredients",
+                        showAllIngredients ? "Show This Step Only" : "Show All Ingredients",
                         style: const TextStyle(
                           color: Color(0xFFFF6A45),
                           fontWeight: FontWeight.bold,
@@ -139,30 +97,17 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
               const SizedBox(height: 20),
 
               /// ================= INGREDIENT BOX LIST =================
-              if (ingredients.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20.0),
-                  child: Center(
-                    child: Text(
-                      'No ingredients found',
-                      style: TextStyle(
-                        color: Colors.grey,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SizedBox(
+              SizedBox(
                 height: MediaQuery.of(context).size.height * 0.5,
                 child: SingleChildScrollView(
                   child: Column(
-                    children: ingredients.map<Widget>(
+                    children: (showAllIngredients ? allIngredients! : stepIngredients).map<Widget>(
                       (item) {
-                        // Get the name and quantity with fallbacks
-                        final name = (item['name'] ?? item['ingredient'] ?? item['item'] ?? 'Ingredient').toString().trim();
-                        final qty = (item['qty'] ?? item['quantity'] ?? item['amount'] ?? '').toString();
-                        final emoji = _emojiService.getEmojiForIngredient(name);
+                        // Handle the data structure from IngredientsNeededScreen
+                        // The actual data has 'item', 'price', and 'quantity' keys
+                        final name = (item['item'] ?? 'Ingredient').toString();
+                        final qty = (item['quantity']?.toString() ?? '');
+                        final icon = item['icon'] as String?;
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
@@ -186,12 +131,12 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
                             ],
                           ),
                           child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
-                              // EMOJI OR DEFAULT ICON
-                              _buildIngredientIcon(emoji),
+                              // ICON - Updated to use _buildIngredientIcon
+                              _buildIngredientIcon(icon),
+                              const SizedBox(width: 14),
 
-                              // NAME + QUANTITY
+                              // NAME + QTY
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,8 +145,7 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
                                       name,
                                       style: const TextStyle(
                                         fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.black,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                     if (qty.isNotEmpty) ...[
@@ -209,8 +153,8 @@ class _StepIngredientsBottomSheetState extends State<StepIngredientsBottomSheet>
                                       Text(
                                         qty,
                                         style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF7A7A7A),
+                                          fontSize: 14,
+                                          color: Colors.grey,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),

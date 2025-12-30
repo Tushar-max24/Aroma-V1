@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../../core/utils/extreme_spring_physics.dart';
-import '../../../data/services/emoji_service.dart';
 import 'step_ingredients_bottomsheet.dart';
 import 'step_timer_bottomsheet.dart';
 import '../completion/completion_screen.dart';
@@ -29,98 +28,30 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
   int _secondsRemaining = 0;
   bool _isTimerRunning = false;
   bool _isTimerSet = false;
-  final EmojiService _emojiService = EmojiService();
-  bool _isEmojiInitialized = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeEmojiService();
-  }
-
-  Future<void> _initializeEmojiService() async {
-    await _emojiService.initialize();
-    if (mounted) {
-      setState(() {
-        _isEmojiInitialized = true;
-      });
-    }
-  }
-
-  Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
-    // If we have an explicit icon, use it
-    if (icon is String) {
-      // Handle emoji strings
-      if (!icon.startsWith('assets/') && !icon.startsWith('http') && icon.isNotEmpty) {
-        return Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          child: Text(
-            icon,
-            style: const TextStyle(fontSize: 24),
-          ),
-        );
-      }
-      // Handle asset images
-      else if (icon.startsWith('assets/')) {
-        return Image.asset(
-          icon,
-          width: 30,
-          height: 30,
-          fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(ingredientName),
-        );
-      }
-    }
-    
-    // If no icon is provided, try to get one from EmojiService
-    if (_isEmojiInitialized && ingredientName.isNotEmpty) {
-      final emoji = _emojiService.getEmojiForIngredient(ingredientName);
-      if (emoji != null) {
-        return Container(
-          width: 40,
-          height: 40,
-          alignment: Alignment.center,
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 24),
-          ),
-        );
-      }
-    }
-    
-    // Fallback to default icon
-    return _buildDefaultIngredientIcon(ingredientName);
-  }
-  
-  Widget _buildDefaultIngredientIcon([String? ingredientName]) {
-    // If we have an ingredient name, try to get an emoji for it
-    if (_isEmojiInitialized && ingredientName != null && ingredientName.isNotEmpty) {
-      final emoji = _emojiService.getEmojiForIngredient(ingredientName);
-      if (emoji != null) {
-        return Container(
-          width: 30,
-          height: 30,
-          alignment: Alignment.center,
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 20),
-          ),
-        );
-      }
-    }
-    
-    // Fallback to the default image
+  Widget _buildIngredientIcon(dynamic icon) {
+  if (icon is String && icon.startsWith('assets/')) {
     return Image.asset(
-      'assets/images/pantry/temp_pantry.png',
+      icon,
       width: 30,
       height: 30,
       fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
+      errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(),
     );
   }
+  // Always use the default icon for any other case
+  return _buildDefaultIngredientIcon();
+}
 
+Widget _buildDefaultIngredientIcon() {
+  return Image.asset(
+    'assets/images/pantry/temp_pantry.png',
+    width: 30,
+    height: 30,
+    fit: BoxFit.contain,
+    errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
+  );
+}
 
   
 
@@ -186,22 +117,16 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.steps.isEmpty) {
-      return const Scaffold(
-        body: Center(
-          child: Text(
-            'No cooking steps available',
-            style: TextStyle(fontSize: 16),
-          ),
+    return const Scaffold(
+      body: Center(
+        child: Text(
+          'No cooking steps available',
+          style: TextStyle(fontSize: 16),
         ),
-      );
+      ),
+    );
     }
-    
-    // Ensure currentStep is within valid range
-    final currentStep = widget.currentStep >= 0 && widget.currentStep < widget.steps.length 
-        ? widget.currentStep 
-        : 0;
-        
-    final step = widget.steps[currentStep];
+  final step = widget.steps[widget.currentStep - 1];
     final String instruction = (step['instruction'] ?? '').toString();
     final List<Map<String, dynamic>> stepIngredients =
         (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList(growable: false) ??
@@ -240,7 +165,7 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
               Row(
                 children: [
                   Text(
-"Step ${currentStep + 1}",
+                    "Step ${widget.currentStep}",
                     style: const TextStyle(
                       fontSize: 16,
                       color: Color(0xFFFF6A45),
@@ -266,7 +191,7 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
                   Container(
                     height: 4,
                     width: MediaQuery.of(context).size.width *
-                        ((currentStep + 1) / widget.steps.length),
+                        (widget.currentStep / widget.steps.length),
                     color: const Color(0xFFFF6A45),
                   ),
                 ],
@@ -404,20 +329,18 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
                   ),
                   GestureDetector(
                     onTap: () {
-                      if (widget.currentStep >= 0 && widget.currentStep < widget.steps.length) {
-                        showModalBottomSheet(
-                          context: context,
-                          isScrollControlled: true,
-                          backgroundColor: Colors.transparent,
-                          builder: (context) => StepIngredientsBottomSheet(
-                            stepIngredients: List<Map<String, dynamic>>.from(
-                              widget.steps[widget.currentStep]['ingredients'] ?? [],
-                            ),
-                            allIngredients: widget.allIngredients,
-                            currentStepIndex: widget.currentStep,
-                          ),
-                        );
-                      }
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (context) => StepIngredientsBottomSheet(
+                          stepIngredients: List<Map<String, dynamic>>.from(
+  widget.steps[widget.currentStep - 1]['ingredients'] ?? [],
+),
+                          allIngredients: widget.allIngredients,
+                          currentStepIndex: widget.currentStep - 1,
+                        ),
+                      );
                     },
                     child: const Text(
                       "View all",
@@ -473,8 +396,8 @@ Column(
       ),
       child: Row(
         children: [
-          // Use _buildIngredientIcon with both icon and name for better emoji matching
-          _buildIngredientIcon(icon, name),
+          // Use _buildIngredientIcon instead of direct Text widget
+          _buildIngredientIcon(icon),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -610,20 +533,18 @@ Column(
                       ),
                       child: TextButton(
                         onPressed: () {
-                          if (currentStep < widget.steps.length - 1) {
-                            // Go to next step
+                          if (widget.currentStep < widget.steps.length) {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
                                 builder: (_) => CookingStepsScreen(
                                   steps: widget.steps,
-                                  currentStep: currentStep + 1,
+                                  currentStep: widget.currentStep + 1,
                                   allIngredients: widget.allIngredients,
                                 ),
                               ),
                             );
-                          } else if (currentStep == widget.steps.length - 1) {
-                            // Last step - go to completion screen
+                          } else {
                             Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(
@@ -633,7 +554,7 @@ Column(
                           }
                         },
                         child: Text(
-                          currentStep < widget.steps.length - 1 ? "Next" : "Done",
+                          widget.currentStep < widget.steps.length ? "Next" : "Done",
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 18,

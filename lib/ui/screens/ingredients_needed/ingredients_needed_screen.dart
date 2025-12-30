@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../../data/services/emoji_service.dart';
 import '../cooking_steps/cooking_steps_screen.dart';
+
+
+import 'package:flutter/material.dart';
 
 final List<Map<String, dynamic>> cookingStepsModel = [
   // ---------------- STEP 1 ----------------
@@ -130,24 +132,17 @@ final List<Map<String, dynamic>> cookingStepsModel = [
   },
 ];
 
-class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
-  final EmojiService _emojiService = EmojiService();
-  bool _isEmojiInitialized = false;
+class IngredientsNeededScreen extends StatelessWidget {
+  final int servings;
+  final List<Map<String, dynamic>> ingredients;
+  final List<Map<String, dynamic>> steps;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeEmojiService();
-  }
-
-  Future<void> _initializeEmojiService() async {
-    await _emojiService.initialize();
-    if (mounted) {
-      setState(() {
-        _isEmojiInitialized = true;
-      });
-    }
-  }
+  const IngredientsNeededScreen({
+    super.key,
+    required this.servings,
+    required this.ingredients,
+    required this.steps,
+  });
 
   Widget _buildDefaultIngredientIcon() {
     return Padding(
@@ -166,12 +161,14 @@ class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+
               // ---------------- BACK BUTTON ----------------
               Container(
                 height: 42,
@@ -221,7 +218,7 @@ class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
                         text: "Make sure you have all ingredients\nfor ",
                       ),
                       TextSpan(
-                        text: "${widget.servings} serving",
+                        text: "$servings serving",
                         style: const TextStyle(
                           color: Color(0xFFFF6A45),
                           fontWeight: FontWeight.w900,
@@ -237,78 +234,88 @@ class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
               // ---------------- INGREDIENT BOX LIST ----------------
               Expanded(
                 child: ListView.separated(
-                  itemCount: widget.ingredients.length,
+                  itemCount: ingredients.length,
                   separatorBuilder: (_, __) => const Divider(
                     height: 1,
                     thickness: 0.7,
                     color: Color(0xFFE5E5E5),
                   ),
-                  itemBuilder: (context, index) {
-                    if (!_isEmojiInitialized) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    
-                    final item = widget.ingredients[index];
-                    // Get the name and quantity with fallbacks
-                    final name = (item['name'] ?? item['ingredient'] ?? item['item'] ?? 'Ingredient').toString().trim();
-                    // Get quantity with proper fallbacks and handle serving size adjustment
-                    final baseQty = item['qty'] ?? item['quantity'] ?? item['amount'] ?? 1;
-                    final qty = (baseQty is num && widget.servings > 0)
-                        ? (baseQty * widget.servings).toString()
-                        : baseQty.toString();
-                    
-                    // Get emoji for the ingredient
-                    final emoji = _emojiService.getEmojiForIngredient(name);
+                  // Update the itemBuilder in ListView.separated to properly display ingredient names
+itemBuilder: (context, index) {
+  final item = ingredients[index];
+  // Get the name and quantity with fallbacks
+  final name = (item['name'] ?? item['ingredient'] ?? item['item'] ?? 'Ingredient').toString();
+  final qty = (item['qty'] ?? item['quantity'] ?? item['amount'] ?? 'as needed').toString();
+  final icon = item['icon'] ?? 'assets/images/pantry/temp_pantry.png';
 
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 10,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // EMOJI OR DEFAULT ICON
-                          if (emoji != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 12),
-                              child: Text(
-                                emoji,
-                                style: const TextStyle(fontSize: 30),
-                              ),
-                            )
-                          else
-                            _buildDefaultIngredientIcon(),
+  return Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: 4,
+      vertical: 10,
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        // ICON
+        Builder(
+          builder: (context) {
+            // If we have a valid asset path, use it
+            if (icon is String && icon.startsWith('assets/')) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Image.asset(
+                  icon,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(),
+                ),
+              );
+            }
+            // If we have an emoji, use it
+            else if (icon is String && icon.isNotEmpty) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Text(
+                  icon,
+                  style: const TextStyle(fontSize: 30),
+                ),
+              );
+            }
+            // Fallback to default ingredient image
+            return _buildDefaultIngredientIcon();
+          },
+        ),
 
-                          // NAME + QUANTITY
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  qty,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: Color(0xFF7A7A7A),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+        // NAME + QUANTITY
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                qty,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: Color(0xFF7A7A7A),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+},
                 ),
               ),
 
@@ -324,57 +331,41 @@ class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
                     ),
                   ),
                   onPressed: () {
-                    // Create a default step if steps is empty or null
-                    List<Map<String, dynamic>> stepsToPass = [];
-                    
-                    if (widget.steps.isNotEmpty) {
-                      // Ensure all steps have the required fields
-                      stepsToPass = widget.steps.map((step) {
-                        return {
-                          'instruction': step['instruction']?.toString() ?? 'Continue cooking',
-                          'ingredients': (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [],
-                          'tips': (step['tips'] as List?)?.whereType<String>().toList() ?? [],
-                          if (step['rich_instruction'] != null) 'rich_instruction': step['rich_instruction'],
-                        };
-                      }).toList();
-                    } else {
-                      // Create a default step
-                      stepsToPass = [
-                        {
-                          'instruction': 'Follow the recipe instructions',
-                          'ingredients': widget.ingredients.map((ingredient) {
-                            final emoji = _emojiService.getEmojiForIngredient(
-                              ingredient['name'] ?? ingredient['ingredient'] ?? ingredient['item'] ?? 'Ingredient'
-                            );
-                            return {
-                              'name': ingredient['name'] ?? ingredient['ingredient'] ?? ingredient['item'] ?? 'Ingredient',
-                              'emoji': emoji,
-                              'qty': ingredient['qty'] ?? ingredient['quantity'] ?? ingredient['amount'] ?? 'as needed',
-                            };
-                          }).toList(),
-                          'tips': ['Make sure to follow the recipe carefully']
-                        }
-                      ];
-                    }
-                    
-                    if (stepsToPass.isNotEmpty) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CookingStepsScreen(
-                            steps: stepsToPass,
-                            currentStep: 0, // Start from the first step (index 0)
-                            allIngredients: widget.ingredients,
-                          ),
-                        ),
-                      );
-                    } else {
-                      // Handle case where there are no steps
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('No cooking steps available')),
-                      );
-                    }
-                  },
+  // Create a default step if steps is empty or null
+  List<Map<String, dynamic>> stepsToPass = [];
+  
+  if (steps.isNotEmpty) {
+    // Ensure all steps have the required fields
+    stepsToPass = steps.map((step) {
+      return {
+        'instruction': step['instruction']?.toString() ?? 'Continue cooking',
+        'ingredients': (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [],
+        'tips': (step['tips'] as List?)?.whereType<String>().toList() ?? [],
+        if (step['rich_instruction'] != null) 'rich_instruction': step['rich_instruction'],
+      };
+    }).toList();
+  } else {
+    // Create a default step
+    stepsToPass = [
+      {
+        'instruction': 'Follow the recipe instructions',
+        'ingredients': ingredients,
+        'tips': ['Make sure to follow the recipe carefully']
+      }
+    ];
+  }
+  
+  Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => CookingStepsScreen(
+      steps: steps,              // detailed steps
+      currentStep: 1,
+      allIngredients: ingredients,
+    ),
+  ),
+);
+},
                   child: const Text(
                     "Let's Start",
                     style: TextStyle(
@@ -392,20 +383,4 @@ class _IngredientsNeededScreenState extends State<IngredientsNeededScreen> {
       ),
     );
   }
-}
-
-class IngredientsNeededScreen extends StatefulWidget {
-  final int servings;
-  final List<Map<String, dynamic>> ingredients;
-  final List<Map<String, dynamic>> steps;
-
-  const IngredientsNeededScreen({
-    super.key,
-    required this.servings,
-    required this.ingredients,
-    required this.steps,
-  });
-
-  @override
-  State<IngredientsNeededScreen> createState() => _IngredientsNeededScreenState();
 }

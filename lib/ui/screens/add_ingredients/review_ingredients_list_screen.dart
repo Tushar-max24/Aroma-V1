@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../data/services/emoji_service.dart';
-import '../../../data/models/ingredient_model.dart';
 import '../../widgets/ingredient_row.dart';
 import '../preferences/cooking_preference_screen.dart';
+import '../../../data/models/ingredient_model.dart';
 
 class ReviewIngredientsListScreen extends StatefulWidget {
   final dynamic scanResult;
@@ -26,7 +25,6 @@ class _ReviewIngredientsListScreenState
   /// 👉 Store price & quantity separately (clean approach)
   final Map<String, double> _priceMap = {};
   final Map<String, int> _quantityMap = {};
-  final Map<String, String> _metricsMap = {};
 
   bool _isLoading = true;
   String? _error;
@@ -40,39 +38,24 @@ class _ReviewIngredientsListScreenState
   // ---------------- Fetch Ingredients from Scan ----------------
   Future<void> _fetchIngredients() async {
     try {
-      // Initialize emoji service
-      await EmojiService().initialize();
-      
       final result = widget.scanResult;
       final ing = result["ingredients_with_quantity"] ?? [];
 
-      _ingredients = [];
-      for (var item in ing) {
+      _ingredients = ing.map<IngredientModel>((item) {
         final id = DateTime.now().microsecondsSinceEpoch.toString();
-        final itemName = item["item"]?.toString() ?? "";
-        
-        _priceMap[id] = double.tryParse(item["price"]?.toString() ?? "0") ?? 0.0;
-        _quantityMap[id] = int.tryParse(item["quantity"]?.toString() ?? "1") ?? 1;
-        
-        // Get emoji for the ingredient
-        final emoji = EmojiService().getEmojiForIngredient(itemName);
-        
-        // Get metrics for the ingredient
-        final metrics = EmojiService().getMetricsForIngredient(itemName) ?? '1 pc';
-        _metricsMap[id] = metrics;
-        
-        _ingredients.add(
-          IngredientModel(
-            id: id,
-            emoji: emoji, // Can be null, which is handled by IngredientRow
-            name: itemName,
-            match: 100,
-            quantity: _quantityMap[id]?.toDouble() ?? 1.0,
-            price: _priceMap[id] ?? 0.0,
-            metrics: metrics,
-          ),
+
+        _priceMap[id] =
+            double.tryParse(item["price"]?.toString() ?? "0") ?? 0.0;
+        _quantityMap[id] =
+            int.tryParse(item["quantity"]?.toString() ?? "1") ?? 1;
+
+        return IngredientModel(
+          id: id,
+          emoji: "🍎",
+          name: item["item"]?.toString() ?? "",
+          match: 100,
         );
-      }
+      }).toList();
 
       setState(() => _isLoading = false);
     } catch (e) {
@@ -153,88 +136,12 @@ class _ReviewIngredientsListScreenState
 
   // ---------------- Remove Ingredient ----------------
   void _removeIngredient(int index) {
+    final id = _ingredients[index].id;
     setState(() {
-      final removed = _ingredients.removeAt(index);
-      // Also remove from price and quantity maps
-      if (removed.id != null) {
-        _priceMap.remove(removed.id);
-        _quantityMap.remove(removed.id);
-      }
+      _priceMap.remove(id);
+      _quantityMap.remove(id);
+      _ingredients.removeAt(index);
     });
-  }
-
-  void _showEditDialog(int index) {
-    final ingredient = _ingredients[index];
-    final quantityController = TextEditingController(
-      text: ingredient.quantity.toInt().toString(),
-    );
-    final metricsController = TextEditingController(
-      text: ingredient.metrics ?? '1 pc',
-    );
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Ingredient'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('${ingredient.name}'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: quantityController,
-              decoration: const InputDecoration(
-                labelText: 'Quantity',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: metricsController,
-              decoration: const InputDecoration(
-                labelText: 'Metrics (e.g., kg, g, pcs)',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('CANCEL'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final newQuantity = int.tryParse(quantityController.text) ?? 1;
-              final newMetrics = metricsController.text.trim();
-              
-              setState(() {
-                if (ingredient.id != null) {
-                  // Update quantity in the quantity map
-                  _quantityMap[ingredient.id!] = newQuantity;
-                  
-                  // Update metrics in the metrics map if it's not empty
-                  if (newMetrics.isNotEmpty) {
-                    _metricsMap[ingredient.id!] = newMetrics;
-                  }
-                  
-                  // Update the ingredient in the list
-                  _ingredients[index] = ingredient.copyWith(
-                    quantity: newQuantity.toDouble(),
-                    metrics: newMetrics.isNotEmpty ? newMetrics : ingredient.metrics,
-                  );
-                }
-              });
-              
-              Navigator.pop(context);
-            },
-            child: const Text('SAVE'),
-          ),
-        ],
-      ),
-    );
   }
 
   // ---------------- UI ----------------
@@ -326,8 +233,8 @@ class _ReviewIngredientsListScreenState
                   child: Text(
                     'Proceed',
                     style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 17,
                         color: Colors.black),
                   ),
                 ),
@@ -356,8 +263,8 @@ class _ReviewIngredientsListScreenState
       itemCount: _ingredients.length,
       itemBuilder: (context, index) {
         final item = _ingredients[index];
-        final price = item.id != null ? _priceMap[item.id!] ?? 0.0 : 0.0;
-        final qty = item.id != null ? _quantityMap[item.id!] ?? 1 : 1;
+        final price = _priceMap[item.id] ?? 0.0;
+        final qty = _quantityMap[item.id] ?? 1;
 
         return Column(
           children: [
@@ -372,50 +279,15 @@ class _ReviewIngredientsListScreenState
                     name: item.name,
                     matchPercent: item.match,
                     onRemove: () => _removeIngredient(index),
-                    onEdit: () => _showEditDialog(index),
                   ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Text(
-                        'Qty: $qty',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black.withOpacity(0.7),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '•',
-                        style: TextStyle(
-                          color: Colors.black.withOpacity(0.3),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: 'Metrics: ',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.black.withOpacity(0.6),
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            TextSpan(
-                              text: _metricsMap[item.id] ?? '1 pc',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.black.withOpacity(0.8),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 6),
+                  Text(
+                    "Price: ₹$price   |   Quantity: $qty",
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: Colors.black.withOpacity(0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),

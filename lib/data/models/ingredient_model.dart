@@ -1,12 +1,11 @@
 class IngredientModel {
   final String? id;
-  final String? emoji;
+  final String emoji;
   final String name;
   final int match;
   final double quantity;
   final String unit;
   final double price;
-  final String? metrics;
 
   IngredientModel({
     this.id,
@@ -16,7 +15,6 @@ class IngredientModel {
     this.quantity = 1.0,
     this.unit = 'pcs',
     this.price = 0.0,
-    this.metrics,
   });
 
   factory IngredientModel.fromJson(Map<String, dynamic> json) {
@@ -33,13 +31,12 @@ class IngredientModel {
 
     return IngredientModel(
       id: json['id']?.toString(),
-      emoji: json['emoji']?.toString(),
+      emoji: (json['emoji'] ?? '🍴') as String,
       name: (json['name'] ?? '') as String,
       match: parsedMatch,
       quantity: (json['quantity'] != null) ? (json['quantity'] is int ? (json['quantity'] as int).toDouble() : (json['quantity'] as num).toDouble()) : 1.0,
       unit: (json['unit'] ?? 'pcs') as String,
       price: (json['price'] != null) ? (json['price'] is int ? (json['price'] as int).toDouble() : (json['price'] as num).toDouble()) : 0.0,
-      metrics: json['metrics']?.toString(),
     );
   }
 
@@ -51,31 +48,8 @@ class IngredientModel {
       'match': match,
       'quantity': quantity,
       'unit': unit,
-      if (metrics != null) 'metrics': metrics,
       'price': price,
     };
-  }
-
-  IngredientModel copyWith({
-    String? id,
-    String? emoji,
-    String? name,
-    int? match,
-    double? quantity,
-    String? unit,
-    double? price,
-    String? metrics,
-  }) {
-    return IngredientModel(
-      id: id ?? this.id,
-      emoji: emoji ?? this.emoji,
-      name: name ?? this.name,
-      match: match ?? this.match,
-      quantity: quantity ?? this.quantity,
-      unit: unit ?? this.unit,
-      price: price ?? this.price,
-      metrics: metrics ?? this.metrics,
-    );
   }
 }
 

@@ -2,10 +2,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:hive_flutter/hive_flutter.dart';
 import '../recipe_detail/recipe_detail_screen.dart';
-import '../../../widgets/cached_image.dart';
-import '../../../data/services/recipe_cache_service.dart';
+import '../../../widgets/cached_image.dart'; // Add this line
+
 
 // =====================================================================
 // 🔥 IN-MEMORY IMAGE CACHE
@@ -26,51 +25,10 @@ class RecipeListScreen extends StatefulWidget {
   State<RecipeListScreen> createState() => _RecipeListScreenState();
 }
 
-class _RecipeData {
-  String image;
-  final String title;
-  final String cuisine;
-  final String time;
-  final List<Map<String, dynamic>> ingredients;
-  final Map<String, dynamic> preferences;
-
-  _RecipeData({
-    required this.image,
-    required this.title,
-    required this.cuisine,
-    required this.time,
-    required this.ingredients,
-    required this.preferences,
-  });
-
-  factory _RecipeData.fromJson(Map<String, dynamic> json) {
-    return _RecipeData(
-      image: json['image'] ?? '',
-      title: json['title'] ?? 'Unknown Recipe',
-      cuisine: json['cuisine'] ?? '',
-      time: json['time'] ?? '30 min',
-      ingredients: List<Map<String, dynamic>>.from(json['ingredients'] ?? []),
-      preferences: Map<String, dynamic>.from(json['preferences'] ?? {}),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'image': image,
-      'title': title,
-      'cuisine': cuisine,
-      'time': time,
-      'ingredients': ingredients,
-      'preferences': preferences,
-    };
-  }
-}
-
 class _RecipeListScreenState extends State<RecipeListScreen> {
   final List<_RecipeData> _allRecipes = [];
   bool _isLoading = true;
   bool _hasError = false;
-  bool _isLoadingFromCache = false;
 
   int _visibleCount = 3;
   final Set<int> _likedIndices = {};
@@ -78,93 +36,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeCache();
-  }
-
-  Future<void> _initializeCache() async {
-    try {
-      await RecipeCacheService.init();
-      await _loadRecipesWithCache();
-    } catch (e) {
-      debugPrint('Error initializing cache: $e');
-      _fetchRecipes();
-    }
-  }
-
-  Future<void> _loadRecipesWithCache() async {
-    setState(() {
-      _isLoadingFromCache = true;
-    });
-
-    try {
-      final cachedRecipes = await RecipeCacheService.getCachedRecipes(
-        widget.ingredients,
-        widget.preferences,
-      );
-
-      if (cachedRecipes != null && cachedRecipes.isNotEmpty) {
-        _processRecipes(cachedRecipes.cast<Map<String, dynamic>>(), fromCache: true);
-      }
-    } catch (e) {
-      debugPrint('Error loading from cache: $e');
-    } finally {
-      setState(() {
-        _isLoadingFromCache = false;
-      });
-    }
-    
-    // Always try to fetch fresh data
     _fetchRecipes();
-  }
-
-  void _processRecipes(List<Map<String, dynamic>> recipeList, {bool fromCache = false}) {
-    final newRecipes = <_RecipeData>[];
-    
-    for (var item in recipeList) {
-      final recipe = _RecipeData(
-        image: item['image'] ?? '',
-        title: item["Dish"] ?? "Unknown Dish",
-        cuisine: widget.preferences['cuisine'] ?? "",
-        time: "${widget.preferences['time'] ?? 30} min",
-        ingredients: widget.ingredients,
-        preferences: widget.preferences,
-      );
-
-      newRecipes.add(recipe);
-
-      if (!fromCache) {
-        _fetchDishImage(recipe.title).then((img) {
-          if (img != null && mounted) {
-            recipe.image = img;
-            setState(() {});
-          }
-        });
-      }
-    }
-
-    setState(() {
-      _allRecipes
-        ..clear()
-        ..addAll(newRecipes);
-      _visibleCount = _allRecipes.length >= 3 ? 3 : _allRecipes.length;
-      _isLoading = false;
-    });
-
-    if (!fromCache && recipeList.isNotEmpty) {
-      _saveRecipesToCache(recipeList);
-    }
-  }
-
-  Future<void> _saveRecipesToCache(List<Map<String, dynamic>> recipes) async {
-    try {
-      await RecipeCacheService.saveRecipes(
-        widget.ingredients,
-        widget.preferences,
-        recipes,
-      );
-    } catch (e) {
-      debugPrint('Error saving to cache: $e');
-    }
   }
 
   bool _isValidImageUrl(String url) {
@@ -228,14 +100,10 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Future<void> _fetchRecipes() async {
-    if (_allRecipes.isNotEmpty && !_isLoadingFromCache) {
-      // Don't fetch if we already have data and it's not from cache
-      return;
-    }
-
     setState(() {
       _isLoading = true;
       _hasError = false;
+      _allRecipes.clear();
     });
 
     try {
@@ -244,12 +112,35 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
         widget.preferences,
       );
 
-      final List<Map<String, dynamic>> recipeList = 
-          (json['data']?['Recipes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-      _processRecipes(recipeList);
+      final List recipeList =
+          json['data']?['Recipes'] ?? [];
+
+      for (var item in recipeList) {
+        final recipe = _RecipeData(
+          image: "",
+          title: item["Dish"] ?? "Unknown Dish",
+          cuisine: widget.preferences['cuisine'] ?? "",
+          time: "${widget.preferences['time'] ?? 30} min",
+        );
+
+        _allRecipes.add(recipe);
+
+        _fetchDishImage(recipe.title).then((img) {
+          if (img != null && mounted) {
+            recipe.image = img;
+            setState(() {});
+          }
+        });
+      }
+
+      setState(() {
+        _visibleCount =
+            _allRecipes.length >= 3 ? 3 : _allRecipes.length;
+        _isLoading = false;
+      });
     } catch (_) {
       setState(() {
-        _hasError = _allRecipes.isEmpty; // Only show error if we have no data
+        _hasError = true;
         _isLoading = false;
       });
     }
@@ -299,9 +190,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             ),
             const SizedBox(height: 28),
 
-            if (_isLoading && _allRecipes.isEmpty)
+            if (_isLoading)
               const Center(child: CircularProgressIndicator())
-            else if (_hasError && _allRecipes.isEmpty)
+            else if (_hasError)
               const Center(child: Text("Error loading recipes"))
             else
               Column(
@@ -313,8 +204,8 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                       data: _allRecipes[i],
                       isLiked: _likedIndices.contains(i),
                       onToggleLike: () => _toggleLike(i),
-                      ingredients: widget.ingredients,
-                      preferences: widget.preferences,
+                      ingredients: widget.ingredients, // ✅ PASS FROM PARENT
+                      preferences: widget.preferences,  // Add this line
                     ),
                     const SizedBox(height: 30),
                   ],
@@ -408,8 +299,21 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
 }
 
 // =====================================================================
-// RECIPE CARD
+// MODEL
 // =====================================================================
+class _RecipeData {
+  String image;
+  final String title;
+  final String cuisine;
+  final String time;
+
+  _RecipeData({
+    required this.image,
+    required this.title,
+    required this.cuisine,
+    required this.time,
+  });
+}
 
 // =====================================================================
 // RECIPE CARD

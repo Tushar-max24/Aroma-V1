@@ -23,7 +23,7 @@ void main() async {
     await AppConfig().init();
     
     // Initialize Gemini service
-    await GeminiRecipeService.initialize();
+    GeminiRecipeService.initialize();
     
     // Initialize AuthService
     final authService = AuthService();

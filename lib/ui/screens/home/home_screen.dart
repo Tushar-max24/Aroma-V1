@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
 import 'dart:math' as math;
@@ -143,14 +142,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
-  // Auto-scroll timing constants
-  static const Duration _autoScrollInterval = Duration(seconds: 3);
-  static const Duration _scrollAnimationDuration = Duration(milliseconds: 1000);
-  static const Duration _resumeDelay = Duration(seconds: 3);
-  
-  late Timer _autoScrollTimer;
-  bool _isUserScrolling = false;
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final PageController _pageController;
   late final AnimationController _buttonController;
   late final Animation<double> _buttonAnimation;
@@ -166,20 +158,28 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     
-    _pageController = PageController(viewportFraction: 0.9);
-    _scrollController = ScrollController();
+    _pageController = PageController(
+      viewportFraction: 0.85,
+      initialPage: 0,
+    )..addListener(_onPageChanged);
+    
+    _scrollController = ScrollController()
+      ..addListener(_onScrollChanged);
+    
     _buttonController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 800),
     );
     
-    _pageController.addListener(_onPageChanged);
-    _scrollController.addListener(_onScrollChanged);
+    _buttonAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _buttonController,
+      curve: Curves.easeOutCubic,
+    ));
     
-    // Start auto-scroll when the widget initializes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _startAutoScroll();
-    });
+    _buttonController.repeat(reverse: true);
   }
   
   void _onPageChanged() {
@@ -200,39 +200,12 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
   
   @override
   void dispose() {
-    // Cancel the auto-scroll timer
-    _autoScrollTimer.cancel();
     _pageController.removeListener(_onPageChanged);
     _pageController.dispose();
     _scrollController.removeListener(_onScrollChanged);
     _scrollController.dispose();
     _buttonController.dispose();
     super.dispose();
-  }
-  
-  // Start auto-scroll timer
-  void _startAutoScroll() {
-    _autoScrollTimer = Timer.periodic(_autoScrollInterval, (timer) {
-      if (!mounted || _isUserScrolling) return;
-      
-      final nextPage = _pageController.page?.round() ?? 0;
-      final itemCount = Provider.of<HomeProvider>(context, listen: false).recipes.length;
-      
-      if (itemCount <= 1) return; // No need to auto-scroll if there's only one item
-      
-      if (nextPage >= itemCount - 1) {
-        _pageController.animateToPage(
-          0,
-          duration: _scrollAnimationDuration,
-          curve: Curves.easeInOut,
-        );
-      } else {
-        _pageController.nextPage(
-          duration: _scrollAnimationDuration,
-          curve: Curves.easeInOut,
-        );
-      }
-    });
   }
 
   // Custom scroll physics for smooth scrolling
@@ -245,20 +218,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
       height: 360.0,
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
-          if (notification is ScrollStartNotification) {
-            // User started scrolling, pause auto-scroll
-            _isUserScrolling = true;
-          } else if (notification is ScrollEndNotification) {
-            // User stopped scrolling, resume auto-scroll after the delay
-            Future.delayed(_resumeDelay, () {
-              if (mounted) {
-                setState(() {
-                  _isUserScrolling = false;
-                });
-              }
-            });
-          }
-          
           if (notification is ScrollUpdateNotification) {
             if (!_pageController.position.isScrollingNotifier.value) {
               _pageController.position.isScrollingNotifier.value = true;
@@ -281,10 +240,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             });
           },
           itemBuilder: (context, index) {
-            return _buildRecipeCard(
-              Provider.of<HomeProvider>(context, listen: false).recipes[index], 
-              index
-            );
+            return _buildRecipeCard(Provider.of<HomeProvider>(context, listen: false).recipes[index], index);
           },
         ),
       ),

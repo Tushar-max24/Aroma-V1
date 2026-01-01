@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import '../../../data/services/ingredient_image_service.dart';
+import '../../../core/utils/item_image_resolver.dart';
 
 class IngredientRow extends StatelessWidget {
   final String emoji;
   final String name;
   final int matchPercent;
   final VoidCallback onRemove;
+  final bool useImageService;
 
   const IngredientRow({
     super.key,
@@ -12,6 +16,7 @@ class IngredientRow extends StatelessWidget {
     required this.name,
     required this.matchPercent,
     required this.onRemove,
+    this.useImageService = true,
   });
 
   @override
@@ -31,7 +36,7 @@ class IngredientRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
       child: Row(
         children: [
-          // Emoji avatar (slightly larger)
+          // Dynamic ingredient image/emoji
           Container(
             width: 56,
             height: 56,
@@ -39,12 +44,50 @@ class IngredientRow extends StatelessWidget {
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Center(
-              child: Text(
-                emoji,
-                style: const TextStyle(fontSize: 30),
-              ),
-            ),
+            child: useImageService
+                ? FutureBuilder<String?>(
+                    future: IngredientImageService.getIngredientImage(name),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                        );
+                      }
+                      
+                      if (snapshot.hasData && snapshot.data != null) {
+                        final imagePath = snapshot.data!;
+                        // Check if it's a local file path or asset path
+                        if (imagePath.startsWith('assets/')) {
+                          return Image.asset(
+                            imagePath,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => _buildEmojiFallback(),
+                          );
+                        } else {
+                          // For local file paths, check if file exists first
+                          final file = File(imagePath);
+                          if (file.existsSync()) {
+                            return Image.file(
+                              file,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => _buildEmojiFallback(),
+                            );
+                          } else {
+                            // File doesn't exist, fallback to emoji
+                            return _buildEmojiFallback();
+                          }
+                        }
+                      }
+                      
+                      return _buildEmojiFallback();
+                    },
+                  )
+                : _buildEmojiFallback(),
           ),
 
           const SizedBox(width: 14),
@@ -91,6 +134,15 @@ class IngredientRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+  
+  Widget _buildEmojiFallback() {
+    return Center(
+      child: Text(
+        emoji.isNotEmpty ? emoji : ItemImageResolver.getEmojiForIngredient(name),
+        style: const TextStyle(fontSize: 30),
       ),
     );
   }

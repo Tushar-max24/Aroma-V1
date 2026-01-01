@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:flavoryx/core/services/auth_service.dart';
 import 'package:flavoryx/core/utils/auth_utils.dart';
 import 'package:flavoryx/ui/widgets/loading_overlay.dart';
+import 'package:flavoryx/ui/screens/home/home_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -48,13 +49,22 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
         
-        if (!response.success) {
+        if (response.success) {
+          // Navigate to home screen on successful login
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(
+                phoneNumber: response.data?.phone ?? '',
+              ),
+            ),
+          );
+        } else {
           setState(() {
             _errorMessage = response.message ?? 'Login failed';
           });
         }
       }
-      // Navigation is handled by AuthWrapper
     } catch (e) {
       if (mounted) {
         setState(() {

@@ -7,6 +7,7 @@ import 'capture_preview_screen.dart';
 import 'review_ingredients_screen.dart';
 import '../../../core/enums/scan_mode.dart';
 import '../pantry/review_items_screen.dart';
+import '../pantry/pantry_review_ingredients_screen.dart';
 import '../../../data/services/scan_bill_service.dart';
 import '../../../data/services/pantry_add_service.dart';
 
@@ -43,39 +44,15 @@ class IngredientEntryScreen extends StatelessWidget {
       );
     }
   } else {
-    // For pantry, we'll still scan immediately since that was the original behavior
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const Center(
-          child: CircularProgressIndicator(),
-        );
-      },
-    );
-
-    try {
-      final scanResult = await ScanBillService().scanBill(image);
-      final items = scanResult["ingredients_with_quantity"];
-
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Remove loading dialog
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => ReviewItemsScreen(
-              items: List<Map<String, dynamic>>.from(items),
-            ),
+    // For pantry, navigate to PantryReviewIngredientsScreen to show "Looks Good" screen
+    if (context.mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => PantryReviewIngredientsScreen(
+            capturedImage: image,
           ),
-        );
-      }
-    } catch (e) {
-      debugPrint("Error processing pantry items: $e");
-      if (context.mounted) {
-        Navigator.of(context).pop(); // Remove loading dialog
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to process image. Please try again.')),
-        );
-      }
+        ),
+      );
     }
   }
 }

@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../recipe_detail/recipe_detail_screen.dart';
-import '../../../widgets/cached_image.dart'; // Add this line
+import '../../../widgets/cached_image.dart';
+import '../../../data/repositories/recipe_cache_repository.dart';
 
 
 // =====================================================================
@@ -73,32 +74,6 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     return null;
   }
 
-  Future<Map<String, dynamic>> _callRecipeApi(
-    List<Map<String, dynamic>> ingredients,
-    Map<String, dynamic> prefs,
-  ) async {
-    final url =
-        Uri.parse("http://3.108.110.151:5001/generate-recipes-ingredient");
-
-    final body = {
-      "Meal_Type": [prefs["meal_type"] ?? "lunch"],
-      "Serving": int.tryParse(prefs["servings"]?.toString() ?? "1") ?? 1,
-      "Ingredients_Available": ingredients,
-    };
-
-    final res = await http.post(
-      url,
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(body),
-    );
-
-    if (res.statusCode == 200) {
-      return jsonDecode(res.body);
-    } else {
-      throw Exception("Failed to fetch recipes");
-    }
-  }
-
   Future<void> _fetchRecipes() async {
     setState(() {
       _isLoading = true;
@@ -107,35 +82,85 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     });
 
     try {
-      final json = await _callRecipeApi(
-        widget.ingredients,
+      // Step 1: Check cache first
+      final cachedData = await RecipeCacheRepository.getCachedGeneratedRecipes(
         widget.preferences,
+        widget.ingredients,
       );
-
-      final List recipeList =
-          json['data']?['Recipes'] ?? [];
-
-      for (var item in recipeList) {
-        final recipe = _RecipeData(
-          image: "",
-          title: item["Dish"] ?? "Unknown Dish",
-          cuisine: widget.preferences['cuisine'] ?? "",
-          time: "${widget.preferences['time'] ?? 30} min",
-        );
-
-        _allRecipes.add(recipe);
-
-        _fetchDishImage(recipe.title).then((img) {
-          if (img != null && mounted) {
-            recipe.image = img;
-            setState(() {});
+      
+      List<Map<String, dynamic>> recipeList = [];
+      
+      if (cachedData != null) {
+        // Step 2a: Cache hit - use cached data instantly
+        recipeList = cachedData.recipes;
+        print('✅ Generated recipes loaded from cache (${recipeList.length} recipes)');
+        
+        // Load cached images
+        for (final recipe in recipeList) {
+          final recipeTitle = recipe["Dish"] ?? "Unknown Dish";
+          final cachedImage = cachedData.recipeImages[recipeTitle];
+          
+          if (cachedImage != null) {
+            final recipeData = _RecipeData(
+              image: cachedImage,
+              title: recipeTitle,
+              cuisine: widget.preferences['cuisine'] ?? "",
+              time: "${widget.preferences['time'] ?? 30} min",
+            );
+            _allRecipes.add(recipeData);
           }
-        });
+        }
+      } else {
+        // Step 2b: Cache miss - fetch from backend and cache
+        print('🔄 No cache found, fetching from backend');
+        
+        // This method will: fetch from backend → cache result → return data
+        final freshCache = await RecipeCacheRepository.getGeneratedRecipes(
+          widget.preferences,
+          widget.ingredients,
+        );
+        
+        recipeList = freshCache.recipes;
+        print('📋 Backend returned ${recipeList.length} recipes and cached them');
+      }
+
+      // Step 3: Create UI elements from the data (cached or fresh)
+      for (var item in recipeList) {
+        final recipeTitle = item["Dish"] ?? "Unknown Dish";
+        
+        // Check if we already have this recipe in UI
+        if (!_allRecipes.any((r) => r.title == recipeTitle)) {
+          final recipe = _RecipeData(
+            image: "",
+            title: recipeTitle,
+            cuisine: widget.preferences['cuisine'] ?? "",
+            time: "${widget.preferences['time'] ?? 30} min",
+          );
+
+          _allRecipes.add(recipe);
+
+          // Try to get cached image first, then fetch if needed
+          final cachedImage = cachedData?.recipeImages[recipeTitle] ?? 
+                             await RecipeCacheRepository.getCachedRecipeImage(recipeTitle);
+          
+          if (cachedImage != null) {
+            recipe.image = cachedImage;
+            print('✅ Recipe image loaded from cache: $recipeTitle');
+          } else {
+            _fetchDishImage(recipe.title).then((img) {
+              if (img != null && mounted) {
+                recipe.image = img;
+                // Cache the image
+                RecipeCacheRepository.cacheRecipeImage(recipeTitle, img);
+                setState(() {});
+              }
+            });
+          }
+        }
       }
 
       setState(() {
-        _visibleCount =
-            _allRecipes.length >= 3 ? 3 : _allRecipes.length;
+        _visibleCount = _allRecipes.length >= 3 ? 3 : _allRecipes.length;
         _isLoading = false;
       });
     } catch (_) {

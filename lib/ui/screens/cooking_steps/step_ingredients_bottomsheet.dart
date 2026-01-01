@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import '../../../data/services/ingredient_image_service.dart';
+import '../../../core/utils/item_image_resolver.dart';
 
 class StepIngredientsBottomSheet extends StatelessWidget {
   final List<Map<String, dynamic>> stepIngredients;
@@ -13,26 +16,70 @@ class StepIngredientsBottomSheet extends StatelessWidget {
     this.currentStepIndex,
   });
 
-  Widget _buildIngredientIcon(dynamic icon) {
-    if (icon is String && icon.startsWith('assets/')) {
-      return Image.asset(
-        icon,
-        width: 30,
-        height: 30,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(),
+  Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
+    // If we have an emoji, use it
+    if (icon is String && icon.isNotEmpty && !icon.startsWith('assets/')) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 0),
+        child: Text(
+          icon,
+          style: const TextStyle(fontSize: 30),
+        ),
       );
     }
-    return _buildDefaultIngredientIcon();
+    
+    // Use dynamic ingredient image service
+    return FutureBuilder<String?>(
+      future: IngredientImageService.getIngredientImage(ingredientName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+            ),
+          );
+        }
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          final imagePath = snapshot.data!;
+          if (imagePath.startsWith('assets/')) {
+            return Image.asset(
+              imagePath,
+              width: 30,
+              height: 30,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
+            );
+          } else {
+            // For local file paths, check if file exists first
+            final file = File(imagePath);
+            if (file.existsSync()) {
+              return Image.file(
+                file,
+                width: 30,
+                height: 30,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
+              );
+            } else {
+              // File doesn't exist, fallback to emoji
+              return _buildEmojiIcon(ingredientName);
+            }
+          }
+        }
+        
+        return _buildEmojiIcon(ingredientName);
+      },
+    );
   }
 
-  Widget _buildDefaultIngredientIcon() {
-    return Image.asset(
-      'assets/images/pantry/temp_pantry.png',
-      width: 30,
-      height: 30,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
+  Widget _buildEmojiIcon(String ingredientName) {
+    return Text(
+      ItemImageResolver.getEmojiForIngredient(ingredientName),
+      style: const TextStyle(fontSize: 30),
     );
   }
 
@@ -132,8 +179,8 @@ class StepIngredientsBottomSheet extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              // ICON - Updated to use _buildIngredientIcon
-                              _buildIngredientIcon(icon),
+                              // ICON - Updated to use dynamic image loading
+                              _buildIngredientIcon(icon, name),
                               const SizedBox(width: 14),
 
                               // NAME + QTY

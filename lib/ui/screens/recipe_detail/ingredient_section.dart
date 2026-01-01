@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/utils/item_image_resolver.dart';
 
 // ===============================
 // INGREDIENT SECTION (DYNAMIC)
@@ -78,17 +79,8 @@ class IngredientSection extends StatelessWidget {
   }
 
   String _emojiForIngredient(String name) {
-    final n = name.toLowerCase();
-    if (n.contains("egg")) return "🥚";
-    if (n.contains("tomato")) return "🍅";
-    if (n.contains("onion")) return "🧅";
-    if (n.contains("milk")) return "🥛";
-    if (n.contains("cheese")) return "🧀";
-    if (n.contains("chicken")) return "🍗";
-    if (n.contains("rice")) return "🍚";
-    if (n.contains("oil")) return "🛢️";
-    if (n.contains("salt")) return "🧂";
-    return "🥬";
+    // Return empty string to use dynamic images instead
+    return '';
   }
 }
 
@@ -126,13 +118,12 @@ class IngredientTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Icon(
-          //   isAvailable ? Icons.check_circle : Icons.radio_button_unchecked,
-          //   color: isAvailable ? Colors.green : Colors.grey,
-          // ),
-          // const SizedBox(width: 8),
-          Text(icon, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: 14),
+          // Dynamic ingredient image instead of emoji
+          ItemImageResolver.getImageWidget(
+            name,
+            size: 24,
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

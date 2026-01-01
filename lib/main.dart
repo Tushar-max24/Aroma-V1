@@ -2,32 +2,42 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flavoryx/ui/screens/auth/auth_wrapper.dart';
+
+// Core & Config
 import 'package:flavoryx/core/config/app_config.dart';
+
+// State & Services
 import 'package:flavoryx/state/pantry_state.dart';
 import 'package:flavoryx/state/home_provider.dart';
 import 'package:flavoryx/data/services/gemini_recipe_service.dart';
 import 'package:flavoryx/data/services/shopping_list_service.dart';
+import 'package:flavoryx/data/services/cache_manager_service.dart';
 import 'package:flavoryx/core/services/auth_service.dart';
-import 'package:flavoryx/ui/screens/auth/login_screen.dart';
+import 'package:flavoryx/data/services/app_state_service.dart';
+
+// UI Screens
+import 'package:flavoryx/ui/screens/auth/auth_wrapper.dart';
+import 'package:flavoryx/ui/screens/splash/splash_screen.dart';
 
 void main() async {
-  // Ensure Flutter binding is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     // Load environment variables
     await dotenv.load(fileName: ".env");
-    
+
     // Initialize app configuration
     await AppConfig().init();
-    
+
     // Initialize Gemini service
     GeminiRecipeService.initialize();
-    
+
     // Initialize AuthService
     final authService = AuthService();
-    
+
+    // Mark session as inactive (app starting fresh)
+    await AppStateService.markSessionInactive();
+
     runApp(
       MultiProvider(
         providers: [
@@ -36,40 +46,26 @@ void main() async {
           ),
           ChangeNotifierProvider(create: (_) => ShoppingListService()),
           ChangeNotifierProvider(create: (_) => PantryState()..loadPantry()),
-          ChangeNotifierProvider(create: (_) => HomeProvider()..loadRecipes()),
+          ChangeNotifierProvider(create: (_) => HomeProvider()),
         ],
-        child: const MyApp(),
+        child: MyApp(
+          authService: authService,
+        ),
       ),
     );
   } catch (e, stackTrace) {
     debugPrint('Error during app initialization: $e');
     debugPrint('Stack trace: $stackTrace');
-    
-    // Show error UI
+
     runApp(
-      MaterialApp(
+      const MaterialApp(
         debugShowCheckedModeBanner: false,
         home: Scaffold(
           body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 16),
-                const Text(
-                  'Failed to initialize app',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                  child: Text(
-                    e.toString(),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-              ],
+            child: Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 48,
             ),
           ),
         ),
@@ -78,14 +74,99 @@ void main() async {
   }
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class MyApp extends StatefulWidget {
+  final AuthService authService;
+  
+  const MyApp({
+    super.key,
+    required this.authService,
+  });
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.paused:
+        // App going to background - save current state
+        _saveCurrentAppState();
+        break;
+      case AppLifecycleState.detached:
+        // App being closed - mark session inactive
+        AppStateService.markSessionInactive();
+        break;
+      case AppLifecycleState.resumed:
+        // App coming to foreground - session becomes active
+        _markSessionActive();
+        break;
+      case AppLifecycleState.inactive:
+        // App losing focus
+        break;
+      case AppLifecycleState.hidden:
+        // App hidden
+        break;
+    }
+  }
+
+  Future<void> _saveCurrentAppState() async {
+    try {
+      // Get current route information
+      final navKey = navigatorKey;
+      if (navKey.currentContext != null) {
+        final route = ModalRoute.of(navKey.currentContext!);
+        if (route != null) {
+          final screenName = route.settings.name ?? 'unknown';
+          
+          // Save basic state - you can extend this with more specific data
+          await AppStateService.saveAppState(
+            currentScreen: screenName,
+            screenData: {
+              'timestamp': DateTime.now().toIso8601String(),
+            },
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error saving app state on pause: $e');
+    }
+  }
+
+  Future<void> _markSessionActive() async {
+    try {
+      // This will be handled by individual screens when they load
+      print(' App resumed - session active');
+    } catch (e) {
+      debugPrint('Error marking session active: $e');
+    }
+  }
+
+  // Global navigator key for state tracking
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Aroma',
       debugShowCheckedModeBanner: false,
+
       theme: ThemeData(
         primarySwatch: Colors.orange,
         scaffoldBackgroundColor: Colors.white,
@@ -99,9 +180,17 @@ class MyApp extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        // Add other theme configurations here
       ),
-      home: const AuthWrapper(),
+
+      // ✅ Splash screen is now the FIRST screen
+      home: SplashScreen(
+        authService: widget.authService,
+      ),
+
+      // 🔁 Used internally after splash
+      routes: {
+        '/auth': (_) => const AuthWrapper(),
+      },
     );
   }
 }

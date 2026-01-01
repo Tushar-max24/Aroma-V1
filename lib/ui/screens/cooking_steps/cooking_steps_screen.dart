@@ -1,6 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'dart:io';
+import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/repositories/recipe_cache_repository.dart';
+import '../../../core/utils/item_image_resolver.dart';
 import '../../../core/utils/extreme_spring_physics.dart';
 import 'step_ingredients_bottomsheet.dart';
 import 'step_timer_bottomsheet.dart';
@@ -10,12 +15,14 @@ class CookingStepsScreen extends StatefulWidget {
   final List<Map<String, dynamic>> steps;
   final int currentStep;
   final List<Map<String, dynamic>> allIngredients;
+  final String recipeName;
 
   const CookingStepsScreen({
     super.key,
     required this.steps,
     required this.currentStep,
     required this.allIngredients,
+    required this.recipeName,
   });
 
   @override
@@ -28,32 +35,143 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
   int _secondsRemaining = 0;
   bool _isTimerRunning = false;
   bool _isTimerSet = false;
+  List<Map<String, dynamic>> _cachedSteps = [];
+  bool _isLoadingSteps = false;
 
-  Widget _buildIngredientIcon(dynamic icon) {
-  if (icon is String && icon.startsWith('assets/')) {
-    return Image.asset(
-      icon,
-      width: 30,
-      height: 30,
-      fit: BoxFit.contain,
-      errorBuilder: (_, __, ___) => _buildDefaultIngredientIcon(),
+  @override
+  void initState() {
+    super.initState();
+    _loadStepsFromCache();
+  }
+
+  Future<void> _loadStepsFromCache() async {
+    if (widget.recipeName.isNotEmpty) {
+      setState(() {
+        _isLoadingSteps = true;
+      });
+      
+      try {
+        final cachedSteps = await RecipeCacheRepository.getCookingSteps(widget.recipeName);
+        if (cachedSteps.isNotEmpty) {
+          setState(() {
+            _cachedSteps = cachedSteps;
+            _isLoadingSteps = false;
+          });
+          print('✅ Cooking steps loaded from cache for: ${widget.recipeName}');
+        } else {
+          setState(() {
+            _isLoadingSteps = false;
+          });
+        }
+      } catch (e) {
+        print('Error loading cooking steps from cache: $e');
+        setState(() {
+          _isLoadingSteps = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
+    if (kDebugMode) {
+      print('🔍 CookingSteps: Building ingredient icon for: $ingredientName');
+    }
+    
+    // If we have an emoji (not a regular ingredient name), use it directly
+    if (icon is String && icon.isNotEmpty && icon.length <= 2) {
+      return Text(
+        icon,
+        style: const TextStyle(fontSize: 30),
+      );
+    }
+    
+    // Try to find matching ingredient in allIngredients list for better name matching
+    String searchName = ingredientName.toLowerCase().trim();
+    for (final allIng in widget.allIngredients) {
+      final allName = (allIng['item'] ?? allIng['name'] ?? '').toString().toLowerCase().trim();
+      final currentName = ingredientName.toLowerCase().trim();
+      if (allName.contains(currentName) || currentName.contains(allName)) {
+        searchName = allIng['item'] ?? allIng['name'] ?? ingredientName;
+        if (kDebugMode) {
+          print('🔍 CookingSteps: Found better match: "$searchName"');
+        }
+        break;
+      }
+    }
+    
+    // Use the same simple FutureBuilder approach as the working bottomsheet
+    return FutureBuilder<String?>(
+      future: IngredientImageService.getIngredientImage(searchName),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return SizedBox(
+            width: 30,
+            height: 30,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+            ),
+          );
+        }
+        
+        if (snapshot.hasData && snapshot.data != null) {
+          final imagePath = snapshot.data!;
+          if (kDebugMode) {
+            print('🔍 CookingSteps: Found image path: $imagePath');
+          }
+          
+          if (imagePath.startsWith('assets/')) {
+            return Image.asset(
+              imagePath,
+              width: 30,
+              height: 30,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
+            );
+          } else {
+            // For local file paths, check if file exists first
+            final file = File(imagePath);
+            if (file.existsSync()) {
+              if (kDebugMode) {
+                final fileSize = file.lengthSync();
+                print('🔍 CookingSteps: File exists, size: $fileSize bytes');
+              }
+              return Image.file(
+                file,
+                width: 30,
+                height: 30,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
+              );
+            } else {
+              // File doesn't exist, fallback to emoji
+              if (kDebugMode) {
+                print('🔍 CookingSteps: File does not exist: $imagePath');
+              }
+              return _buildEmojiIcon(ingredientName);
+            }
+          }
+        }
+        
+        // If no data or error, fallback to emoji
+        return _buildEmojiIcon(ingredientName);
+      },
     );
   }
-  // Always use the default icon for any other case
-  return _buildDefaultIngredientIcon();
-}
 
-Widget _buildDefaultIngredientIcon() {
-  return Image.asset(
-    'assets/images/pantry/temp_pantry.png',
-    width: 30,
-    height: 30,
-    fit: BoxFit.contain,
-    errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
-  );
-}
+  Widget _buildEmojiIcon(String ingredientName) {
+    return Text(
+      ItemImageResolver.getEmojiForIngredient(ingredientName),
+      style: const TextStyle(fontSize: 30),
+    );
+  }
 
-  
+  Widget _buildDefaultIngredientIcon() {
+    return ItemImageResolver.getImageWidget(
+      'default_ingredient',
+      size: 30,
+    );
+  }
 
   @override
   void dispose() {
@@ -116,7 +234,10 @@ Widget _buildDefaultIngredientIcon() {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.steps.isEmpty) {
+    // Use cached steps if available, otherwise use widget steps
+    final currentSteps = _cachedSteps.isNotEmpty ? _cachedSteps : widget.steps;
+    
+    if (currentSteps.isEmpty) {
     return const Scaffold(
       body: Center(
         child: Text(
@@ -126,7 +247,16 @@ Widget _buildDefaultIngredientIcon() {
       ),
     );
     }
-  final step = widget.steps[widget.currentStep - 1];
+    
+    if (_isLoadingSteps) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+    
+  final step = currentSteps[widget.currentStep - 1];
     final String instruction = (step['instruction'] ?? '').toString();
     final List<Map<String, dynamic>> stepIngredients =
         (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList(growable: false) ??
@@ -173,7 +303,7 @@ Widget _buildDefaultIngredientIcon() {
                     ),
                   ),
                   Text(
-                    " / ${widget.steps.length}",
+                    " / ${currentSteps.length}",
                     style: const TextStyle(
                       fontSize: 16,
                       color: Colors.grey,
@@ -191,7 +321,7 @@ Widget _buildDefaultIngredientIcon() {
                   Container(
                     height: 4,
                     width: MediaQuery.of(context).size.width *
-                        (widget.currentStep / widget.steps.length),
+                        (widget.currentStep / currentSteps.length),
                     color: const Color(0xFFFF6A45),
                   ),
                 ],
@@ -368,12 +498,19 @@ Widget _buildDefaultIngredientIcon() {
               const SizedBox(height: 14),
 
               // ---------------- INGREDIENTS LIST ----------------
-              // ---------------- INGREDIENTS LIST ----------------
 Column(
   children: stepIngredients.map<Widget>((ingredient) {
     final name = (ingredient['item'] ?? ingredient['name'] ?? 'Ingredient').toString();
     final qty = (ingredient['quantity']?.toString() ?? ingredient['qty']?.toString() ?? '');
-    final icon = ingredient['icon'] as String?; // Remove emoji fallback
+    final icon = ingredient['icon'] ?? name;
+
+    if (kDebugMode) {
+      print('🔍 CookingSteps Ingredient Data:');
+      print('  - Raw ingredient: $ingredient');
+      print('  - Name: "$name"');
+      print('  - Icon: "$icon"');
+      print('  - Qty: "$qty"');
+    }
 
     return Container(
       width: double.infinity,
@@ -396,8 +533,7 @@ Column(
       ),
       child: Row(
         children: [
-          // Use _buildIngredientIcon instead of direct Text widget
-          _buildIngredientIcon(icon),
+          _buildIngredientIcon(icon, name),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -406,9 +542,9 @@ Column(
                 Text(
                   name,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF333333),
+                    color: Colors.black,
                   ),
                 ),
                 if (qty.isNotEmpty) ...[
@@ -417,7 +553,7 @@ Column(
                     qty,
                     style: const TextStyle(
                       fontSize: 13,
-                      color: Color(0xFF666666),
+                      color: Color(0xFF7A7A7A),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -541,6 +677,7 @@ Column(
                                   steps: widget.steps,
                                   currentStep: widget.currentStep + 1,
                                   allIngredients: widget.allIngredients,
+                                  recipeName: widget.recipeName,
                                 ),
                               ),
                             );

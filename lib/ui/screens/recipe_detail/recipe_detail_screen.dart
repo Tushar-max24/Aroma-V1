@@ -13,6 +13,7 @@ import '../../../data/services/api_client.dart';
 import '../../../state/pantry_state.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/gemini_recipe_service.dart';
+import '../../../data/repositories/recipe_cache_repository.dart';
 import '../../../widgets/cached_image.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
@@ -79,7 +80,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   Future<void> _fetchAIData() async {
   try {
-    final result = await GeminiRecipeService.fetchRecipeData(widget.title);
+    // Try cache first, then fallback to Gemini
+    final result = await RecipeCacheRepository.getRecipeDetails(widget.title);
 
     setState(() {
       aiData = result;
@@ -89,16 +91,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       // FULL STEP DATA (for CookingStepsScreen)
       _cookingStepsDetailed = List<Map<String, dynamic>>.from(result["steps"] ?? []);
 
-
-
-
       // PREVIEW TEXT ONLY (for PreparationSection)
       _cookingSteps = _cookingStepsDetailed
     .map((e) => (e['instruction'] ?? '').toString())
     .where((s) => s.trim().isNotEmpty)
     .toList();
-
-
 
       _similarRecipeData =
           List<String>.from(result["similar_recipes"] ?? [])
@@ -398,6 +395,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         servings: servings,
                         ingredients: _ingredientData,
                         steps: _cookingStepsDetailed,
+                        recipeName: widget.title,
                       ),
                     ),
                   );

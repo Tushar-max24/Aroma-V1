@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/app_colors.dart';
 import '../../widgets/ingredient_row.dart';
 import '../preferences/cooking_preference_screen.dart';
 import '../../../data/models/ingredient_model.dart';
+import '../../../data/services/ingredient_image_service.dart';
+import '../../../core/utils/item_image_resolver.dart';
 
 class ReviewIngredientsListScreen extends StatefulWidget {
   final dynamic scanResult;
@@ -51,7 +52,7 @@ class _ReviewIngredientsListScreenState
 
         return IngredientModel(
           id: id,
-          emoji: "🍎",
+          emoji: ItemImageResolver.getEmojiForIngredient(item["item"]?.toString() ?? ""),
           name: item["item"]?.toString() ?? "",
           match: 100,
         );
@@ -114,7 +115,7 @@ class _ReviewIngredientsListScreenState
                   _ingredients.add(
                     IngredientModel(
                       id: id,
-                      emoji: "🍎",
+                      emoji: ItemImageResolver.getEmojiForIngredient(name),
                       name: name,
                       match: 100,
                     ),
@@ -279,6 +280,7 @@ class _ReviewIngredientsListScreenState
                     name: item.name,
                     matchPercent: item.match,
                     onRemove: () => _removeIngredient(index),
+                    useImageService: true,
                   ),
                   const SizedBox(height: 6),
                   Text(

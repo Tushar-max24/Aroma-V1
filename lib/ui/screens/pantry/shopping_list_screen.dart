@@ -125,8 +125,9 @@ final bool stillNeeded = needsToBuy(
                         ),
                         leading: CircleAvatar(
                           backgroundColor: Colors.grey.shade200,
-                          backgroundImage: AssetImage(
-                            ItemImageResolver.getImage(item['name']),
+                          child: ItemImageResolver.getImageWidget(
+                            item['name'],
+                            size: 40,
                           ),
                         ),
                         title: Row(

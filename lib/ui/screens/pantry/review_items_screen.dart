@@ -24,39 +24,6 @@ class _ReviewItemsScreenState extends State<ReviewItemsScreen> {
     reviewItems = List.from(widget.items);
   }
 
-  // Background processing method (doesn't block UI)
-  Future<void> _processItemsInBackground() async {
-    try {
-      // Get services
-      final pantryState = Provider.of<PantryState>(context, listen: false);
-      final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
-      
-      // Process each item
-      for (final item in reviewItems) {
-        final name = item['item']?.toString() ?? '';
-        final qty = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0;
-        final unit = item['unit']?.toString() ?? 'pcs';
-        
-        // Add to pantry
-        await pantryState.setItem(name, qty, unit);
-        
-        // Add to shopping list
-        shoppingService.addItem(
-          name: name,
-          quantity: qty,
-          unit: unit,
-          category: 'Pantry',
-        );
-      }
-
-      // Save to server (fire and forget)
-      PantryAddService().saveToPantry(reviewItems);
-    } catch (e) {
-      debugPrint("Background processing failed: $e");
-      // Don't show any error to user since we've already navigated away
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -115,15 +82,36 @@ class _ReviewItemsScreenState extends State<ReviewItemsScreen> {
               ),
             ),
             onPressed: () async {
-              // Navigate back to pantry home screen immediately
-              Navigator.of(context).pushNamedAndRemoveUntil(
-                '/pantry',
-                (route) => false,
-              );
-              
-              // Process items in background (don't wait for completion)
-              _processItemsInBackground();
-            },
+    // Get services
+    final pantryState = Provider.of<PantryState>(context, listen: false);
+    final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
+    
+    // Process each item
+    for (final item in reviewItems) {
+      final name = item['item']?.toString() ?? '';
+      final qty = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0;
+      final unit = item['unit']?.toString() ?? 'pcs';
+      
+      // Add to pantry
+      await pantryState.setItem(name, qty, unit);
+      
+      // Add to shopping list
+      shoppingService.addItem(
+        name: name,
+        quantity: qty,
+        unit: unit,
+        category: 'Pantry',
+      );
+    }
+
+    // Save to server
+    final success = await PantryAddService().saveToPantry(reviewItems);
+
+    if (success) {
+      // Go back to previous screen with added items
+      Navigator.pop(context, reviewItems);
+    }
+  },
   child: const Text("Add to pantry",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),

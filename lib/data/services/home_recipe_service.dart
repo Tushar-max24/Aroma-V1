@@ -21,7 +21,7 @@ class HomeRecipeService {
           "Meal_Type": ["Breakfast"],
           "Cooking_Time": "< 15 min",
           "Serving": "1",
-          "Ingredients_Available": ["Ladies finger", "rice"],
+          "Ingredients_Available": ["Potato", "rice" , "Onion" , "Tomato"],
         },
       );
 

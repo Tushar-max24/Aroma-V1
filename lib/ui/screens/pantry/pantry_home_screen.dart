@@ -332,9 +332,9 @@ class _PantryHomeScreenState extends State<PantryHomeScreen> {
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              ItemImageResolver.getImage(item['name']),
-              fit: BoxFit.cover,
+            child: ItemImageResolver.getImageWidget(
+              item['name'],
+              size: 120,
             ),
           ),
         ),

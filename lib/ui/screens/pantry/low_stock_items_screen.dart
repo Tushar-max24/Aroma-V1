@@ -130,11 +130,10 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
                             ),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor:
-                                    Colors.grey.shade200,
-                                backgroundImage: AssetImage(
-                                  ItemImageResolver.getImage(
-                                      name),
+                                backgroundColor: Colors.grey.shade200,
+                                child: ItemImageResolver.getImageWidget(
+                                  name,
+                                  size: 40,
                                 ),
                               ),
                               title: Text(

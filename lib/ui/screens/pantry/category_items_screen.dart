@@ -153,10 +153,9 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
     );
   }
 
-  // ✅ CARD WITH ASSET IMAGE
+  // ✅ CARD WITH GENERATED IMAGE
   Widget _itemCard(Map<String, dynamic> item) {
     final category = CategoryEngine.getCategory(item['name']);
-    final imagePath = ItemImageResolver.getImage(item['name']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -174,21 +173,11 @@ class _CategoryItemsScreenState extends State<CategoryItemsScreen> {
       ),
       child: Row(
         children: [
-          // 🖼 ASSET IMAGE
+          // 🖼 GENERATED IMAGE
           ClipOval(
-            child: Image.asset(
-              imagePath,
-              height: 48,
-              width: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) {
-                return Container(
-                  height: 48,
-                  width: 48,
-                  color: kAccent,
-                  child: const Icon(Icons.fastfood, color: Colors.white),
-                );
-              },
+            child: ItemImageResolver.getImageWidget(
+              item['name'],
+              size: 48,
             ),
           ),
 

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiRecipeService {
   static void initialize() {
@@ -7,7 +8,7 @@ class GeminiRecipeService {
     // Currently just a placeholder to satisfy the call in main.dart
   }
 
-  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+  // Remove hardcoded API key - use AppConfig instead
 
   static String _extractFirstJsonObject(String text) {
     var cleaned = text.replaceAll('```json', '').replaceAll('```', '').trim();
@@ -31,7 +32,7 @@ class GeminiRecipeService {
 
   static Future<Map<String, dynamic>> fetchRecipeData(String recipeName) async {
     final url = Uri.parse(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKey",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${dotenv.env['GEMINI_API_KEY'] ?? ''}",
     );
 
     try {
@@ -100,7 +101,7 @@ Return ONLY a valid JSON object. No markdown.
     int count = 3,
   }) async {
     final url = Uri.parse(
-      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=$_apiKey",
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${dotenv.env['GEMINI_API_KEY'] ?? ''}",
     );
 
     try {

@@ -1,19 +1,24 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../core/config/app_config.dart';
 
 class RecipeAIService {
-  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxx";
+  // Only API key from environment
+  static String get _apiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
+  static const String _openAiUrl = 'https://api.openai.com/v1/chat/completions';
+  static const String _openAiModel = 'gpt-3.5-turbo';
   static Future<Map<String, dynamic>> fetchRecipeData(String recipeName) async {
-    final url = Uri.parse("https://api.openai.com/v1/chat/completions");
+    final url = Uri.parse(_openAiUrl);
 
     final response = await http.post(
       url,
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer $_apiKey",
+        "Authorization": "Bearer ${_apiKey}",
       },
       body: jsonEncode({
-        "model": "gpt-3.5-turbo",
+        "model": _openAiModel,
         "messages": [
           {
             "role": "system",

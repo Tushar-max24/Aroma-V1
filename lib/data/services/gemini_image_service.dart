@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class GeminiImageService {
   static const String _baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
   static const String _modelName = 'gemini-2.5-flash-image';
-  static const String _apiKey = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+  // Only API key from environment
   
   static DateTime? _lastRequestTime;
   static const Duration _minRequestInterval = Duration(seconds: 2); // Rate limiting
@@ -43,7 +44,7 @@ class GeminiImageService {
       // Apply rate limiting
       await _waitForRateLimit();
       
-      final url = '$_baseUrl/models/$_modelName:generateContent?key=$_apiKey';
+      final url = '$_baseUrl/models/$_modelName:generateContent?key=${dotenv.env['GEMINI_API_KEY'] ?? ''}';
       
       final prompt = '''
 Generate a high-quality, realistic, appetizing image of the ingredient: "$ingredientName". 

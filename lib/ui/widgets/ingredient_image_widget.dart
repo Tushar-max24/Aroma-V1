@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../data/services/ingredient_image_service.dart';
+import '../../data/services/enhanced_ingredient_image_service.dart';
 
 class IngredientImageWidget extends StatefulWidget {
   final String ingredientName;
@@ -12,6 +12,7 @@ class IngredientImageWidget extends StatefulWidget {
   final Widget? errorWidget;
   final BorderRadius? borderRadius;
   final VoidCallback? onTap;
+  final String? imageUrl; // Add imageUrl parameter
 
   const IngredientImageWidget({
     super.key,
@@ -23,6 +24,7 @@ class IngredientImageWidget extends StatefulWidget {
     this.errorWidget,
     this.borderRadius,
     this.onTap,
+    this.imageUrl, // Add to constructor
   });
 
   @override
@@ -47,7 +49,10 @@ class _IngredientImageWidgetState extends State<IngredientImageWidget> {
     });
 
     try {
-      final imagePath = await IngredientImageService.getIngredientImage(widget.ingredientName);
+      final imagePath = await EnhancedIngredientImageService.getIngredientImage(
+        widget.ingredientName, 
+        imageUrl: widget.imageUrl, // Use the imageUrl parameter
+      );
       if (mounted) {
         setState(() {
           _imagePath = imagePath;
@@ -105,20 +110,54 @@ class _IngredientImageWidgetState extends State<IngredientImageWidget> {
 
   Widget _buildImage() {
     if (_imagePath != null) {
-      final file = File(_imagePath!);
-      if (file.existsSync()) {
+      // Check if it's a network URL
+      if (_imagePath!.startsWith('http://') || _imagePath!.startsWith('https://')) {
         return ClipRRect(
           borderRadius: widget.borderRadius ?? BorderRadius.circular(16),
-          child: Image.file(
-            file,
+          child: Image.network(
+            _imagePath!,
             width: widget.width,
             height: widget.height,
             fit: widget.fit,
             errorBuilder: (context, error, stackTrace) {
               return _buildErrorWidget();
             },
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Container(
+                width: widget.width,
+                height: widget.height,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: widget.borderRadius ?? BorderRadius.circular(16),
+                ),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                  ),
+                ),
+              );
+            },
           ),
         );
+      } else {
+        // Handle as local file
+        final file = File(_imagePath!);
+        if (file.existsSync()) {
+          return ClipRRect(
+            borderRadius: widget.borderRadius ?? BorderRadius.circular(16),
+            child: Image.file(
+              file,
+              width: widget.width,
+              height: widget.height,
+              fit: widget.fit,
+              errorBuilder: (context, error, stackTrace) {
+                return _buildErrorWidget();
+              },
+            ),
+          );
+        }
       }
     }
     return _buildErrorWidget();
@@ -152,12 +191,14 @@ class IngredientImageThumbnail extends StatelessWidget {
   final String ingredientName;
   final double size;
   final VoidCallback? onTap;
+  final String? imageUrl; // Add imageUrl parameter
 
   const IngredientImageThumbnail({
     super.key,
     required this.ingredientName,
     this.size = 56,
     this.onTap,
+    this.imageUrl, // Add to constructor
   });
 
   @override
@@ -168,6 +209,7 @@ class IngredientImageThumbnail extends StatelessWidget {
       height: size,
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
+      imageUrl: imageUrl, // Pass imageUrl to the widget
     );
   }
 }

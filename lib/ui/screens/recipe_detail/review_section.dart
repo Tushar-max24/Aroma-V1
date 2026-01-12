@@ -16,40 +16,12 @@ class ReviewSection extends StatefulWidget {
 
 class _ReviewSectionState extends State<ReviewSection> {
   late List<Map<String, dynamic>> _reviews;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _reviews = widget.reviews;
-    _generateAIReviews();
-  }
-
-  Future<void> _generateAIReviews() async {
-    // Simulate AI review generation
-    await Future.delayed(const Duration(seconds: 1));
-    
-    final aiReviews = [
-      {
-        'name': 'AI Foodie',
-        'comment': 'This ${widget.recipeName} recipe is absolutely delicious! The flavors are perfectly balanced and the instructions were easy to follow.',
-        'rating': 5,
-        'isAI': true,
-        'timeAgo': 'Just now',
-      },
-      {
-        'name': 'ChefBot',
-        'comment': 'As an AI with extensive recipe knowledge, I can confirm this is one of the best ${widget.recipeName} recipes I\'ve analyzed. The cooking time and temperature are spot on!',
-        'rating': 5,
-        'isAI': true,
-        'timeAgo': '1 min ago',
-      },
-    ];
-
-    setState(() {
-      _reviews = [..._reviews, ...aiReviews];
-      _isLoading = false;
-    });
+    // AI review generation disabled - using only backend data
   }
 
   double get averageRating {
@@ -135,26 +107,12 @@ class _ReviewSectionState extends State<ReviewSection> {
             ),
             if (_reviews.isNotEmpty) ...[
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.auto_awesome, size: 12, color: Colors.blue),
-                    const SizedBox(width: 2),
-                    Text(
-                      'AI Enhanced',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.blue.shade800,
-                      ),
-                    ),
-                  ],
+              Text(
+                '⭐ ${averageRating.toStringAsFixed(1)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.orange.shade800,
                 ),
               ),
             ],
@@ -163,28 +121,24 @@ class _ReviewSectionState extends State<ReviewSection> {
 
         const SizedBox(height: 22),
 
-        /// ---- LOADING / EMPTY ----
-        if (_isLoading)
+        /// ---- EMPTY STATE ----
+        if (_reviews.isEmpty)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  "AI is generating reviews...",
+                Icon(Icons.rate_review, size: 24, color: Colors.grey),
+                SizedBox(width: 12),
+                Text(
+                  "No reviews available for this recipe",
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue,
+                    color: Colors.grey,
                   ),
                 ),
               ],

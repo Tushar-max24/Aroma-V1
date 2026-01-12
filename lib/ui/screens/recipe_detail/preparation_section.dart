@@ -25,20 +25,20 @@ class PreparationSection extends StatelessWidget {
 
         const SizedBox(height: 22),
 
-        /// ---- AI LOADING STATE ----
+        /// ---- EMPTY STATE ----
         if (steps.isEmpty)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: Colors.grey.shade50,
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Text(
-              "Generating cooking steps...",
+              "No cooking steps available",
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
-                color: Colors.orange,
+                color: Colors.grey,
               ),
             ),
           )

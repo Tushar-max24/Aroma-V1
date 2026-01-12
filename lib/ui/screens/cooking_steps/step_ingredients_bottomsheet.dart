@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:io';
-import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/services/enhanced_ingredient_image_service.dart';
 import '../../../core/utils/item_image_resolver.dart';
+import '../../../ui/widgets/shared_ingredient_icon_cache.dart';
 
 class StepIngredientsBottomSheet extends StatelessWidget {
   final List<Map<String, dynamic>> stepIngredients;
@@ -17,62 +19,15 @@ class StepIngredientsBottomSheet extends StatelessWidget {
   });
 
   Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
-    // If we have an emoji, use it
-    if (icon is String && icon.isNotEmpty && !icon.startsWith('assets/')) {
-      return Padding(
-        padding: const EdgeInsets.only(right: 0),
-        child: Text(
-          icon,
-          style: const TextStyle(fontSize: 30),
-        ),
-      );
+    if (kDebugMode) {
+      final cacheStatus = SharedIngredientIconCache.getCacheStatus();
+      print('🔍 StepIngredientsBottomSheet: Building icon for "$ingredientName" (Cache has ${cacheStatus['cachedItems']} items)');
     }
     
-    // Use dynamic ingredient image service
-    return FutureBuilder<String?>(
-      future: IngredientImageService.getIngredientImage(ingredientName),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return SizedBox(
-            width: 30,
-            height: 30,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
-            ),
-          );
-        }
-        
-        if (snapshot.hasData && snapshot.data != null) {
-          final imagePath = snapshot.data!;
-          if (imagePath.startsWith('assets/')) {
-            return Image.asset(
-              imagePath,
-              width: 30,
-              height: 30,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
-            );
-          } else {
-            // For local file paths, check if file exists first
-            final file = File(imagePath);
-            if (file.existsSync()) {
-              return Image.file(
-                file,
-                width: 30,
-                height: 30,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
-              );
-            } else {
-              // File doesn't exist, fallback to emoji
-              return _buildEmojiIcon(ingredientName);
-            }
-          }
-        }
-        
-        return _buildEmojiIcon(ingredientName);
-      },
+    return SharedIngredientIconCache(
+      icon: icon,
+      ingredientName: ingredientName,
+      allIngredients: allIngredients,
     );
   }
 
@@ -150,11 +105,35 @@ class StepIngredientsBottomSheet extends StatelessWidget {
                   child: Column(
                     children: (showAllIngredients ? allIngredients! : stepIngredients).map<Widget>(
                       (item) {
-                        // Handle the data structure from IngredientsNeededScreen
+                        // Handle data structure from IngredientsNeededScreen
                         // The actual data has 'item', 'price', and 'quantity' keys
                         final name = (item['item'] ?? 'Ingredient').toString();
                         final qty = (item['quantity']?.toString() ?? '');
-                        final icon = item['icon'] as String?;
+                        
+                        // First try to get imageUrl from current item
+                        var imageUrl = item['image_url']?.toString() ?? 
+                                       item['imageUrl']?.toString() ?? 
+                                       item['image']?.toString() ?? '';
+                        
+                        // If no imageUrl in current item and we have allIngredients list, look for it there
+                        if (imageUrl.isEmpty && allIngredients != null) {
+                          for (final allIng in allIngredients!) {
+                            final allName = (allIng['item'] ?? allIng['name'] ?? '').toString().toLowerCase().trim();
+                            final currentName = name.toLowerCase().trim();
+                            if (allName == currentName || currentName.contains(allName) || allName.contains(currentName)) {
+                              // Extract imageUrl from multiple possible fields in main ingredient list
+                              imageUrl = allIng['image_url']?.toString() ?? 
+                                         allIng['imageUrl']?.toString() ?? 
+                                         allIng['image']?.toString() ?? '';
+                              if (kDebugMode) {
+                                print('🔍 StepIngredientsBottomSheet: Found imageUrl in allIngredients for "$name": $imageUrl');
+                              }
+                              break;
+                            }
+                          }
+                        }
+                        
+                        final icon = imageUrl.isNotEmpty ? imageUrl : (item['icon'] as String? ?? '');
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 16),
@@ -179,7 +158,7 @@ class StepIngredientsBottomSheet extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
-                              // ICON - Updated to use dynamic image loading
+                              // ICON - Updated to use dynamic image loading with S3 URL support
                               _buildIngredientIcon(icon, name),
                               const SizedBox(width: 14),
 

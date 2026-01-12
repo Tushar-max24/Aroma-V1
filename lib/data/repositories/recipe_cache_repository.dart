@@ -1,13 +1,18 @@
 // lib/data/repositories/recipe_cache_repository.dart
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import '../models/recipe_cache_model.dart';
 import '../services/cache_database_service.dart';
 import '../services/gemini_recipe_service.dart';
 import '../services/preference_api_service.dart';
+import '../services/ingredient_image_service.dart';
 
 class RecipeCacheRepository {
   static const Duration _cacheExpiration = Duration(hours: 24);
+  
+  // Track preloading status to avoid duplicate requests
+  static final Set<String> _preloadingRecipes = {};
 
   // Recipe Details Caching
   static Future<Map<String, dynamic>?> getCachedRecipeDetails(String recipeName) async {
@@ -143,76 +148,33 @@ class RecipeCacheRepository {
     return sha256.convert(utf8.encode(jsonString)).toString();
   }
 
-  static Future<GeneratedRecipeCache?> getCachedGeneratedRecipes(
+  static Future<GeneratedRecipeCache?> getGeneratedRecipes(
     Map<String, dynamic> preferences,
     List<Map<String, dynamic>> ingredients,
   ) async {
+    // Bypass cache and directly fetch from backend API
     try {
-      final preferenceHash = _generatePreferenceHash(preferences, ingredients);
-      final cached = await CacheDatabaseService.getGeneratedRecipes(preferenceHash);
-      
-      if (cached != null) {
-        // Check if cache is still valid
-        if (DateTime.now().difference(cached.cachedAt) < _cacheExpiration) {
-          print('✅ Generated recipes loaded from cache');
-          return cached;
-        } else {
-          // Cache expired, remove it
-          final db = await CacheDatabaseService.database;
-          await db.delete(
-            CacheDatabaseService.generatedRecipeTable,
-            where: 'preference_hash = ?',
-            whereArgs: [preferenceHash],
-          );
-        }
-      }
-    } catch (e) {
-      print('Error getting cached generated recipes: $e');
-    }
-    return null;
-  }
-
-  static Future<GeneratedRecipeCache> getGeneratedRecipes(
-    Map<String, dynamic> preferences,
-    List<Map<String, dynamic>> ingredients,
-  ) async {
-    // Try to get from cache first
-    final cachedData = await getCachedGeneratedRecipes(preferences, ingredients);
-    if (cachedData != null) {
-      print('✅ Generated recipes loaded from cache (${cachedData.recipes.length} recipes)');
-      return cachedData;
-    }
-
-    // Fetch from backend API
-    try {
-      print('🔄 Fetching generated recipes from backend');
+      print('🔄 Bypassing cache - fetching directly from backend');
       final freshData = await PreferenceApiService.generateRecipes(ingredients, preferences);
       
       // Extract recipes and cuisine
-      final recipes = List<Map<String, dynamic>>.from(freshData['data']?['Recipes'] ?? []);
+      final recipes = List<Map<String, dynamic>>.from(freshData['data']?['Recipes'] ?? freshData['recipes'] ?? []);
       final cuisine = preferences['cuisine'] ?? '';
       
       print('📋 Backend returned ${recipes.length} recipes');
       
-      // Create image cache map
-      final Map<String, String> recipeImages = {};
-      
-      // Cache the fresh data
-      final cache = GeneratedRecipeCache(
-        preferenceHash: _generatePreferenceHash(preferences, ingredients),
+      // Return backend data directly without caching
+      return GeneratedRecipeCache(
+        preferenceHash: '', // Empty hash since we're not caching
         recipes: recipes,
-        recipeImages: recipeImages,
+        recipeImages: {},
         cuisine: cuisine,
         cachedAt: DateTime.now(),
       );
-      
-      await CacheDatabaseService.cacheGeneratedRecipes(cache);
-      print('✅ Generated recipes cached successfully (${recipes.length} recipes)');
-      
-      return cache;
     } catch (e) {
-      print('❌ Error fetching generated recipes: $e');
-      rethrow;
+      print('Error getting cached generated recipes: $e');
+      debugPrint('❌ Database error details: ${e.toString()}');
+      return null;
     }
   }
 
@@ -274,5 +236,126 @@ class RecipeCacheRepository {
   static Future<void> clearExpiredCache() async {
     await CacheDatabaseService.clearExpiredCache();
     print('🗑️ Expired cache cleared');
+  }
+
+  // Preloading Methods
+  static Future<void> preloadRecipeDetails(List<String> recipeNames) async {
+    for (final recipeName in recipeNames) {
+      // Skip if already being preloaded
+      if (_preloadingRecipes.contains(recipeName)) {
+        continue;
+      }
+      
+      _preloadingRecipes.add(recipeName);
+      
+      try {
+        // Check if already cached
+        final cachedData = await getCachedRecipeDetails(recipeName);
+        if (cachedData != null) {
+          print('✅ Recipe details already cached: $recipeName');
+          _preloadingRecipes.remove(recipeName);
+          continue;
+        }
+        
+        // Preload from Gemini API
+        print('🔄 Preloading recipe details: $recipeName');
+        await getRecipeDetails(recipeName);
+        print('✅ Recipe details preloaded: $recipeName');
+      } catch (e) {
+        print('❌ Error preloading recipe details for $recipeName: $e');
+      } finally {
+        _preloadingRecipes.remove(recipeName);
+      }
+    }
+  }
+
+  static Future<void> preloadCookingSteps(List<String> recipeNames) async {
+    for (final recipeName in recipeNames) {
+      // Skip if already being preloaded
+      if (_preloadingRecipes.contains(recipeName)) {
+        continue;
+      }
+      
+      _preloadingRecipes.add(recipeName);
+      
+      try {
+        // Check if already cached
+        final cachedSteps = await getCachedCookingSteps(recipeName);
+        List<Map<String, dynamic>> steps;
+        
+        if (cachedSteps.isNotEmpty) {
+          print('✅ Cooking steps already cached: $recipeName');
+          steps = cachedSteps;
+        } else {
+          // Preload from Gemini API
+          print('🔄 Preloading cooking steps: $recipeName');
+          steps = await getCookingSteps(recipeName);
+          print('✅ Cooking steps preloaded: $recipeName');
+        }
+        
+        // Extract and preload ingredient images from cooking steps
+        // This ensures ingredient images are preloaded even if steps were already cached
+        await _preloadIngredientImagesFromSteps(steps, recipeName);
+      } catch (e) {
+        print('❌ Error preloading cooking steps for $recipeName: $e');
+      } finally {
+        _preloadingRecipes.remove(recipeName);
+      }
+    }
+  }
+
+  /// Extract ingredients from cooking steps and preload their images
+  static Future<void> _preloadIngredientImagesFromSteps(
+    List<Map<String, dynamic>> steps, 
+    String recipeName
+  ) async {
+    try {
+      final Set<String> ingredientNames = {};
+      
+      // Extract all ingredient names from all steps
+      for (final step in steps) {
+        final ingredients = step['ingredients'] as List? ?? [];
+        for (final ingredient in ingredients) {
+          if (ingredient is Map<String, dynamic>) {
+            final itemName = ingredient['item']?.toString();
+            if (itemName != null && itemName.isNotEmpty) {
+              ingredientNames.add(itemName.trim());
+            }
+          }
+        }
+      }
+      
+      if (ingredientNames.isNotEmpty) {
+        print('🖼️ Preloading ${ingredientNames.length} ingredient images for: $recipeName');
+        print('📝 Ingredients: ${ingredientNames.take(10).join(', ')}${ingredientNames.length > 10 ? '...' : ''}');
+        
+        // Preload all ingredient images in parallel
+        final futures = ingredientNames.map((ingredientName) async {
+          try {
+            await IngredientImageService.getIngredientImage(ingredientName);
+            print('✅ Preloaded ingredient image: $ingredientName');
+          } catch (e) {
+            print('❌ Failed to preload ingredient image: $ingredientName ($e)');
+          }
+        }).toList();
+        
+        await Future.wait(futures);
+        print('✅ Completed ingredient image preloading for: $recipeName');
+      }
+    } catch (e) {
+      print('❌ Error preloading ingredient images for $recipeName: $e');
+    }
+  }
+
+  static Future<void> preloadRecipeData(List<String> recipeNames) async {
+    print('🚀 Starting preload for ${recipeNames.length} recipes');
+    
+    // Preload recipe details and cooking steps in parallel
+    await Future.wait([
+      preloadRecipeDetails(recipeNames),
+      preloadCookingSteps(recipeNames),
+    ]);
+    
+    print('✅ Preload completed for ${recipeNames.length} recipes');
   }
 }

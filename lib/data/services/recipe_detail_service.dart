@@ -2,9 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class RecipeDetailService {
-  static const String _baseUrl = 'http://3.108.110.151:5001';
+  static String get _baseUrl => dotenv.env['MONGO_EXTERNAL_API_URL'] ?? "http://3.108.110.151:5001";
   static final Dio _dio = Dio(
     BaseOptions(
       baseUrl: _baseUrl,
@@ -16,18 +17,21 @@ class RecipeDetailService {
   // Cache to store recipe details to avoid repeated API calls
   static final Map<String, Map<String, dynamic>> _recipeDetailCache = {};
 
-  // Fetch recipe details from the backend
+  // Fetch recipe details from backend using legacy API
   static Future<Map<String, dynamic>> fetchRecipeDetails(String recipeName) async {
     // Return cached data if available
     if (_recipeDetailCache.containsKey(recipeName)) {
-      return _recipeDetailCache[recipeName]!;
+      final cachedData = _recipeDetailCache[recipeName]!;
+      return cachedData;
     }
 
     try {
-      // Try to fetch recipe details from the main endpoint
+      // Use legacy generate-recipes-ingredient API for recipe details
       final response = await _dio.post(
-        "/generate-recipe-details",
-        data: {"dish_name": recipeName},
+        "/generate-recipes-ingredient",
+        data: {
+          "dish_name": recipeName,
+        },
       );
 
       if (response.statusCode == 200) {
@@ -38,123 +42,99 @@ class RecipeDetailService {
         }
       }
       
-      // If the specific endpoint fails, try the fallback endpoints
-      return await _fetchFallbackDetails(recipeName);
+      // Return empty structure if API fails
+      return {
+        'Recipe Name': recipeName,
+        'Description': 'A delicious recipe prepared with fresh ingredients.',
+        'Ingredients Needed': {},
+        'Preparation Steps': [],
+        'Recipe Steps': [],
+        'Cooking Time': '30 minutes',
+        'Serving': '2',
+        'Meal_Type': 'Lunch',
+        'Nutrition': {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0},
+        'Cookware': [],
+      };
     } catch (e) {
       debugPrint('Error fetching recipe details: $e');
-      return _fetchFallbackDetails(recipeName);
-    }
-  }
-
-  // Fallback to individual endpoints if the combined endpoint fails
-  static Future<Map<String, dynamic>> _fetchFallbackDetails(String recipeName) async {
-    try {
-      // Try to get all data in parallel
-      final results = await Future.wait([
-        _fetchCookware(recipeName),
-        _fetchCookingSteps(recipeName),
-        _fetchReviews(recipeName),
-        _fetchSimilarRecipes(recipeName),
-      ], eagerError: true);
-
-      final result = {
-        'cookware': results[0],
-        'steps': results[1],
-        'reviews': results[2],
-        'similar_recipes': results[3],
-      };
-      
-      _recipeDetailCache[recipeName] = result;
-      return result;
-    } catch (e) {
-      debugPrint('Error in fallback details: $e');
-      // Return empty data structure if all fails
+      // Return empty structure on error
       return {
-        'cookware': [],
-        'steps': [],
-        'reviews': [],
-        'similar_recipes': [],
+        'Recipe Name': recipeName,
+        'Description': 'A delicious recipe prepared with fresh ingredients.',
+        'Ingredients Needed': {},
+        'Preparation Steps': [],
+        'Recipe Steps': [],
+        'Cooking Time': '30 minutes',
+        'Serving': '2',
+        'Meal_Type': 'Lunch',
+        'Nutrition': {'calories': 0, 'protein': 0, 'carbs': 0, 'fat': 0},
+        'Cookware': [],
       };
     }
   }
 
-  static Future<List<String>> _fetchCookware(String recipeName) async {
+  /// Generate image for recipe or ingredient using the unified image API
+  static Future<String?> generateImage(String name, {bool isRecipe = true}) async {
     try {
+      debugPrint("🖼️ [RecipeDetailService] Generating image for: $name (${isRecipe ? 'recipe' : 'ingredient'})");
+      
       final response = await _dio.post(
-        "/generate-recipe-cookware",
-        data: {"dish_name": recipeName},
+        "/generate-image",
+        data: {
+          if (isRecipe) "dish_name": name else "ingredient_name": name,
+        },
       );
-
+      
       if (response.statusCode == 200) {
         final data = response.data;
-        if (data is Map && data['cookware'] is List) {
-          return List<String>.from(data['cookware']);
+        if (data is Map<String, dynamic> && data.containsKey('image_url')) {
+          String imageUrl = data['image_url'].toString();
+          
+          // Ensure HTTPS for S3 URLs
+          if (imageUrl.startsWith('http://') && imageUrl.contains('s3')) {
+            imageUrl = imageUrl.replaceFirst('http://', 'https://');
+            debugPrint("🔒 [RecipeDetailService] Converted S3 URL to HTTPS: $imageUrl");
+          }
+          
+          debugPrint("✅ [RecipeDetailService] Image generated: $imageUrl");
+          return imageUrl;
         }
       }
-      return [];
+      
+      debugPrint("❌ [RecipeDetailService] Image generation failed: ${response.statusCode}");
+      return null;
     } catch (e) {
-      debugPrint('Error fetching cookware: $e');
-      return [];
+      debugPrint("❌ [RecipeDetailService] Image generation exception: $e");
+      return null;
     }
   }
 
-  static Future<List<String>> _fetchCookingSteps(String recipeName) async {
-    try {
-      final response = await _dio.post(
-        "/generate-recipe-steps",
-        data: {"dish_name": recipeName},
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data is Map && data['steps'] is List) {
-          return List<String>.from(data['steps']);
-        }
-      }
-      return [];
-    } catch (e) {
-      debugPrint('Error fetching cooking steps: $e');
-      return [];
+  /// Track recipe view - DISABLED in INSTANT mode
+  static Future<void> trackRecipeView(String recipeName, Map<String, dynamic> recipeDetails) async {
+    if (kDebugMode) {
+      print('⚡ [RecipeDetailService] View tracking DISABLED in INSTANT mode for: $recipeName');
     }
+    // No tracking - instant display only
   }
 
-  static Future<List<Map<String, dynamic>>> _fetchReviews(String recipeName) async {
-    try {
-      final response = await _dio.post(
-        "/generate-recipe-reviews",
-        data: {"dish_name": recipeName},
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data is Map && data['reviews'] is List) {
-          return List<Map<String, dynamic>>.from(data['reviews']);
-        }
-      }
-      return [];
-    } catch (e) {
-      debugPrint('Error fetching reviews: $e');
-      return [];
+  /// Store recipe details - DISABLED in INSTANT mode
+  static Future<void> storeRecipeDetails(String recipeName, Map<String, dynamic> recipeData) async {
+    if (kDebugMode) {
+      print('⚡ [RecipeDetailService] Storage DISABLED in INSTANT mode for: $recipeName');
     }
+    // No storage - instant display only
   }
 
-  static Future<List<Map<String, dynamic>>> _fetchSimilarRecipes(String recipeName) async {
-    try {
-      final response = await _dio.post(
-        "/generate-similar-recipes",
-        data: {"dish_name": recipeName},
-      );
-
-      if (response.statusCode == 200) {
-        final data = response.data;
-        if (data is Map && data['similar'] is List) {
-          return List<Map<String, dynamic>>.from(data['similar']);
-        }
-      }
-      return [];
-    } catch (e) {
-      debugPrint('Error fetching similar recipes: $e');
-      return [];
+  /// Clear cache - DISABLED in INSTANT mode
+  static Future<void> clearCache() async {
+    if (kDebugMode) {
+      print('⚡ [RecipeDetailService] Cache clearing DISABLED in INSTANT mode');
     }
+    _recipeDetailCache.clear();
+  }
+
+  /// Get service status
+  static String getServiceMode() {
+    return 'INSTANT MODE (No MongoDB/Cache)';
   }
 }

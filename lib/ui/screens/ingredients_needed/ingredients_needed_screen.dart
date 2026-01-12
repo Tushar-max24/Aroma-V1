@@ -1,136 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 import '../cooking_steps/cooking_steps_screen.dart';
-import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/services/enhanced_ingredient_image_service.dart';
+import '../../../data/services/enhanced_recipe_detail_service.dart';
 import '../../../core/utils/item_image_resolver.dart';
-
-final List<Map<String, dynamic>> cookingStepsModel = [
-  // ---------------- STEP 1 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Soak the "),
-      TextSpan(text: "whole black lentils (urad dal)", style: TextStyle(fontWeight: FontWeight.bold)),
-      TextSpan(text: " and "),
-      TextSpan(text: "red kidney beans (rajma)", style: TextStyle(fontWeight: FontWeight.bold)),
-      TextSpan(text: " overnight for about "),
-      TextSpan(text: "8–10 hours.", style: TextStyle(fontWeight: FontWeight.bold)),
-      TextSpan(text: " Drain and rinse them well."),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Whole black lentils", "qty": "1 cup (200g)"},
-      {"icon": "", "name": "Red kidney beans (rajma)", "qty": "½ cup (50g)"},
-    ],
-    "tips": [
-      "Use filtered water for better soaking.",
-      "Rinse thoroughly before cooking."
-    ]
-  },
-
-  // ---------------- STEP 2 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Pressure cook the soaked lentils and rajma with salt for "),
-      TextSpan(text: "8–10 whistles.", style: TextStyle(fontWeight: FontWeight.bold)),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Salt", "qty": "1 tsp"},
-    ],
-    "tips": [
-      "Cooking time may vary based on cooker size.",
-      "Ensure beans are soft before the next step."
-    ]
-  },
-
-  // ---------------- STEP 3 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Sauté "),
-      TextSpan(text: "onions, ginger, garlic & green chilies", style: TextStyle(fontWeight: FontWeight.bold)),
-      TextSpan(text: " in butter until golden brown."),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Onion", "qty": "1 medium"},
-      {"icon": "", "name": "Garlic", "qty": "5 cloves"},
-    ],
-    "tips": [
-      "Do not burn garlic; sauté on medium flame.",
-    ]
-  },
-
-  // ---------------- STEP 4 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Add tomato puree and spices, then cook until "),
-      TextSpan(text: "oil separates.", style: TextStyle(fontWeight: FontWeight.bold)),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Tomato puree", "qty": "1 cup"},
-      {"icon": "", "name": "Spices mix", "qty": "2 tsp"},
-    ],
-    "tips": [
-      "Stir continuously to avoid burning.",
-    ]
-  },
-
-  // ---------------- STEP 5 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Add cooked dal mixture and simmer for "),
-      TextSpan(text: "25–30 minutes.", style: TextStyle(fontWeight: FontWeight.bold)),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Cooked dal", "qty": "All prepared"},
-    ],
-    "tips": [
-      "Slow simmering gives deeper flavor.",
-    ]
-  },
-
-  // ---------------- STEP 6 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Add cream, butter & "),
-      TextSpan(text: "kasuri methi", style: TextStyle(fontWeight: FontWeight.bold)),
-      TextSpan(text: ". Mix well."),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Butter", "qty": "3 tbsp"},
-      {"icon": "", "name": "Fresh cream", "qty": "¼ cup"},
-      {"icon": "", "name": "Kasuri methi", "qty": "1 tsp"},
-    ],
-    "tips": [
-      "Do not boil after adding cream—it may curdle.",
-    ]
-  },
-
-  // ---------------- STEP 7 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Smoke using hot charcoal for "),
-      TextSpan(text: "restaurant-style flavour.", style: TextStyle(fontWeight: FontWeight.bold)),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Charcoal", "qty": "1 small piece"},
-    ],
-    "tips": [
-      "Place charcoal in a small bowl and pour ghee on top.",
-    ]
-  },
-
-  // ---------------- STEP 8 ----------------
-  {
-    "rich_instruction": [
-      TextSpan(text: "Serve hot with "),
-      TextSpan(text: "naan or jeera rice.", style: TextStyle(fontWeight: FontWeight.bold)),
-    ],
-    "ingredients": [
-      {"icon": "", "name": "Jeera rice / Naan", "qty": "As needed"},
-    ],
-    "tips": [
-      "Garnish with cream for best presentation.",
-    ]
-  },
-];
 
 class IngredientsNeededScreen extends StatelessWidget {
   final int servings;
@@ -159,11 +32,17 @@ class IngredientsNeededScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDynamicIngredientIcon(String ingredientName) {
+  Widget _buildDynamicIngredientIcon(Map<String, dynamic> ingredientData) {
+    final ingredientName = (ingredientData['name'] ?? ingredientData['ingredient'] ?? ingredientData['item'] ?? 'Ingredient').toString();
+    // Extract imageUrl from multiple possible fields for S3 URL support
+    final imageUrl = ingredientData['image_url']?.toString() ?? 
+                   ingredientData['imageUrl']?.toString() ?? 
+                   ingredientData['image']?.toString() ?? '';
+    
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: FutureBuilder<String?>(
-        future: IngredientImageService.getIngredientImage(ingredientName),
+        future: EnhancedIngredientImageService.getIngredientImage(ingredientName, imageUrl: imageUrl),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return SizedBox(
@@ -187,6 +66,27 @@ class IngredientsNeededScreen extends StatelessWidget {
                 errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
               );
             } else {
+              // For network URLs (S3), use Image.network directly
+              if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+                return Image.network(
+                  imagePath,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 32,
+                      height: 32,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
+                      ),
+                    );
+                  },
+                );
+              }
               // For local file paths, check if file exists first
               final file = File(imagePath);
               if (file.existsSync()) {
@@ -220,7 +120,7 @@ class IngredientsNeededScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
+  Widget _buildIngredientIcon(dynamic icon, Map<String, dynamic> ingredientData) {
     // If we have an emoji, use it
     if (icon is String && icon.isNotEmpty) {
       return Padding(
@@ -231,8 +131,8 @@ class IngredientsNeededScreen extends StatelessWidget {
         ),
       );
     }
-    // Use dynamic ingredient image service
-    return _buildDynamicIngredientIcon(ingredientName);
+    // Use dynamic ingredient image service with full data
+    return _buildDynamicIngredientIcon(ingredientData);
   }
 
   @override
@@ -328,7 +228,7 @@ class IngredientsNeededScreen extends StatelessWidget {
                       child: Row(
                         children: [
                           // DYNAMIC ICON
-                          _buildIngredientIcon(icon, name),
+                          _buildIngredientIcon(icon, item),
 
                           // NAME + QUANTITY
                           Expanded(
@@ -380,21 +280,55 @@ class IngredientsNeededScreen extends StatelessWidget {
                     List<Map<String, dynamic>> stepsToPass = [];
                     
                     if (steps.isNotEmpty) {
-                      // Ensure all steps have the required fields
+                      // Ensure all steps have required fields and proper ingredient structure
                       stepsToPass = steps.map((step) {
+                        // Process ingredients_used to ensure proper structure
+                        List<Map<String, dynamic>> processedIngredients = [];
+                        
+                        if (step['ingredients_used'] != null) {
+                          final ingredients = step['ingredients_used'] as List;
+                          processedIngredients = ingredients.map((ing) {
+                            // Handle different ingredient data structures
+                            if (ing is Map<String, dynamic>) {
+                              return {
+                                'item': ing['item'] ?? ing['name'] ?? ing['ingredient'] ?? 'Ingredient',
+                                'quantity': ing['quantity']?.toString() ?? ing['qty']?.toString() ?? ing['amount']?.toString() ?? 'as needed',
+                                'icon': ing['icon'] ?? '',
+                                'image_url': ing['image_url']?.toString() ?? ing['imageUrl']?.toString() ?? ing['image']?.toString() ?? '',
+                              };
+                            } else {
+                              return {
+                                'item': ing.toString(),
+                                'quantity': 'as needed',
+                                'icon': '',
+                                'image_url': '',
+                              };
+                            }
+                          }).toList();
+                        }
+                        
                         return {
                           'instruction': step['instruction']?.toString() ?? 'Continue cooking',
-                          'ingredients': (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList() ?? [],
+                          'ingredients_used': processedIngredients,
                           'tips': (step['tips'] as List?)?.whereType<String>().toList() ?? [],
                           if (step['rich_instruction'] != null) 'rich_instruction': step['rich_instruction'],
                         };
                       }).toList();
                     } else {
-                      // Create a default step
+                      // Create a default step with processed ingredients
+                      final processedIngredients = ingredients.map((ing) {
+                        return {
+                          'item': ing['item'] ?? ing['name'] ?? ing['ingredient'] ?? 'Ingredient',
+                          'quantity': ing['quantity']?.toString() ?? ing['qty']?.toString() ?? ing['amount']?.toString() ?? 'as needed',
+                          'icon': ing['icon'] ?? '',
+                          'image_url': ing['image_url']?.toString() ?? ing['imageUrl']?.toString() ?? ing['image']?.toString() ?? '',
+                        };
+                      }).toList();
+                      
                       stepsToPass = [
                         {
-                          'instruction': 'Follow the recipe instructions',
-                          'ingredients': ingredients,
+                          'instruction': 'Follow recipe instructions',
+                          'ingredients_used': processedIngredients,
                           'tips': ['Make sure to follow the recipe carefully']
                         }
                       ];

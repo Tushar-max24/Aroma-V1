@@ -5,15 +5,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/utils/item_image_resolver.dart';
-import '../../../data/services/shopping_list_service.dart';
 import '../../../core/enums/scan_mode.dart';
-import '../../../../state/pantry_state.dart';
+import '../../../data/services/shopping_list_service.dart';
 import '../../../data/services/scan_bill_service.dart';
 import '../../../data/services/pantry_add_service.dart';
-
-import 'pantry_item_details_screen.dart';
-import 'pantry_search_add_screen.dart';
+import '../../../data/services/ingredient_metrics_service.dart';
+import '../../../data/models/ingredient_model.dart';
+import '../../widgets/ingredient_row.dart';
+import '../../../state/pantry_state.dart';
 import 'pantry_home_screen.dart';
+import 'pantry_search_add_screen.dart';
+import 'package:lottie/lottie.dart';
+
 enum ReviewState { confirm, scanning, failed }
 
 class PantryReviewIngredientsScreen extends StatefulWidget {
@@ -43,40 +46,59 @@ class _PantryReviewIngredientsScreenState
         return _ConfirmPhotoView(
           capturedImage: widget.capturedImage,
           onLooksGood: () async {
+            final uiStartTime = DateTime.now();
+            debugPrint(" [UI] Starting scan at: ${uiStartTime.millisecondsSinceEpoch}");
             setState(() => _state = ReviewState.scanning);
 
             try {
               final result = await ScanBillService().scanBill(widget.capturedImage!);
 
+              final uiEndTime = DateTime.now();
+              debugPrint(" [UI] Scan result received at: ${uiEndTime.millisecondsSinceEpoch}");
+              debugPrint(" [UI] UI scan time: ${uiEndTime.difference(uiStartTime).inMilliseconds}ms");
+              debugPrint(" [UI] Result received instantly, processing...");
+
               if (!mounted) return;
 
               if (widget.mode == ScanMode.pantry) {
                 // PANTRY FLOW - Process and route to pantry review
-                debugPrint(" PANTRY MODE - Raw scan result: $result");
-                
+                debugPrint(" [UI] PANTRY MODE - Raw scan result: $result");
+
                 // Check if scan result has ingredients data directly
                 if (result.containsKey("ingredients_with_quantity")) {
                   final ingredients = result["ingredients_with_quantity"];
                   if (ingredients is List && ingredients.isNotEmpty) {
-                    debugPrint(" PANTRY MODE - Direct ingredients found: $ingredients");
-                    
+                    debugPrint(" [UI] PANTRY MODE - Direct ingredients found: $ingredients");
+
+                    // Convert new API structure to expected format
+                    final convertedIngredients = ingredients.map((item) => {
+                      "item": item["item"] ?? "Unknown",
+                      "quantity": item["quantity"] ?? 1,
+                      "unit": item["metrics"] ?? "pcs", // Use metrics field from new API
+                      "imageURL": item["imageURL"] ?? item["image_url"] ?? "", // Check both field names
+                      "match%": item["match%"] ?? 100,
+                    }).toList();
+
+                    debugPrint(" [UI] Ingredients converted, navigating to review screen...");
+
                     if (!mounted) return;
-                    
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => _ScannedIngredientsListScreen(
-                          items: List<Map<String, dynamic>>.from(ingredients),
+                          items: convertedIngredients,
                         ),
                       ),
                     );
                     return;
                   }
                 }
-                
+
                 // Fallback: Try to process raw text if no direct ingredients found
                 final rawText = result["raw_text"];
                 debugPrint(" PANTRY MODE - Raw text: $rawText");
+
                 
                 try {
                   final pantryResult = await PantryAddService().processRawText(rawText);
@@ -162,7 +184,7 @@ class _PantryReviewIngredientsScreenState
       case ReviewState.scanning:
         return _ScanningView(
           capturedImage: widget.capturedImage,
-          onCancel: () => setState(() => _state = ReviewState.failed),
+          onFail: () => setState(() => _state = ReviewState.failed),
         );
 
       case ReviewState.failed:
@@ -307,118 +329,99 @@ class _ConfirmPhotoView extends StatelessWidget {
   }
 }
 
-///// 2️⃣ Scanning UI
+///// 2️⃣ Scanning UI (ANIMATED – LOTTIE)
 class _ScanningView extends StatelessWidget {
-  final VoidCallback onCancel;
-  final XFile capturedImage;
+  final XFile? capturedImage;
+  final VoidCallback onFail;
 
-  const _ScanningView({required this.onCancel, required this.capturedImage});
+  const _ScanningView({
+    this.capturedImage,
+    required this.onFail,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Responsive sizing based on screen dimensions
+    final animationSize = screenWidth * 0.65; // 65% of screen width
+    final titleFontSize = screenWidth * 0.04; // Responsive title font
+    final descriptionFontSize = screenWidth * 0.032; // Responsive description font
+    final bottomTextFontSize = screenWidth * 0.028; // Responsive bottom text font
+    
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          // Receipt background image
-          Positioned.fill(
-            child: Image.file(
-              File(capturedImage.path),
-              fit: BoxFit.cover,
-            ),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.06, // 6% of screen width
+            vertical: screenHeight * 0.02, // 2% of screen height
           ),
-          
-          // Back button at top-left
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 16,
-            child: GestureDetector(
-              onTap: onCancel,
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+          child: Column(
+            children: [
+              // Top spacing
+              SizedBox(height: screenHeight * 0.08),
+              
+              // 🔄 Vegetable Scan Animation
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: Lottie.asset(
+                    'assets/Vegetable_Scan.json',
+                    width: animationSize,
+                    height: animationSize,
+                    repeat: true,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-                child: const Icon(Icons.arrow_back, color: Colors.black),
               ),
-            ),
-          ),
-          
-          // Headphone icon at top-right
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            right: 16,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.headphones, color: Colors.black, size: 24),
-            ),
-          ),
 
-          // Center magnifying glass icon
-          Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.35),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.search_rounded,
-                size: 40,
-                color: Colors.white,
-              ),
-            ),
-          ),
+              SizedBox(height: screenHeight * 0.03),
 
-          // Scanner Frame Overlay
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(40, 120, 40, 200),
-              child: CustomPaint(painter: _ScanningFrame()),
-            ),
-          ),
+              // Title
+              Text(
+                'Hang tight',
+                style: TextStyle(
+                  fontSize: titleFontSize.clamp(18.0, 24.0), // Min 18, Max 24
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
 
-          // Bottom text
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Just a few more seconds',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
+              SizedBox(height: screenHeight * 0.02),
+
+              // Description
+              Text(
+                "We're scanning your invoice\nfor all the yummy goodies...",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: descriptionFontSize.clamp(14.0, 16.0), // Min 14, Max 16
+                  color: Colors.black87,
+                  height: 1.4,
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              // Bottom text with proper spacing
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: screenHeight * 0.08, // Responsive bottom padding
+                ),
+                child: Text(
+                  "Just a few more seconds and\nyour pantry will be up to date.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: bottomTextFontSize.clamp(12.0, 14.0), // Min 12, Max 14
+                    color: Colors.black54,
+                    height: 1.4,
                   ),
-                  const Text(
-                    'and your pantry will be up to date.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -557,23 +560,240 @@ class _ScannedIngredientsListScreen extends StatefulWidget {
 }
 
 class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListScreen> {
+  List<IngredientModel> _ingredients = [];
 
-  List<Map<String, dynamic>> _filteredItems = [];
+  /// 👉 Store price, quantity & metrics separately (clean approach)
+  final Map<String, double> _priceMap = {};
+  final Map<String, int> _quantityMap = {};
+  final Map<String, String> _imageMap = {}; // Store image URLs
+
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _filteredItems = List.from(widget.items);
+    final screenStartTime = DateTime.now();
+    debugPrint("🎯 [ReviewScreen] Screen init started at: ${screenStartTime.millisecondsSinceEpoch}");
+
+    // Skip metrics loading for development speed
+    _fetchIngredients();
+
+    final screenEndTime = DateTime.now();
+    debugPrint("🎯 [ReviewScreen] Screen init completed at: ${screenEndTime.millisecondsSinceEpoch}");
+    debugPrint("⏱️ [ReviewScreen] Init time: ${screenEndTime.difference(screenStartTime).inMilliseconds}ms");
   }
 
-  void _removeItem(int index) {
+  Future<void> _loadMetricsAndFetchIngredients() async {
+    await IngredientMetricsService().loadMetrics();
+    _fetchIngredients();
+  }
+
+  // ---------------- Fetch Ingredients from Scan ----------------
+  Future<void> _fetchIngredients() async {
+    final fetchStartTime = DateTime.now();
+    debugPrint("🎯 [ReviewScreen] Starting ingredient fetch at: ${fetchStartTime.millisecondsSinceEpoch}");
+
+    try {
+      final ing = widget.items;
+      debugPrint("🎯 [ReviewScreen] Processing ${ing.length} ingredients");
+
+      _ingredients = ing.map<IngredientModel>((item) {
+        final id = DateTime.now().microsecondsSinceEpoch.toString();
+
+        _priceMap[id] = double.tryParse(item["price"]?.toString() ?? "0") ?? 0.0;
+        _quantityMap[id] = int.tryParse(item["quantity"]?.toString() ?? "1") ?? 1;
+        _imageMap[id] = item["imageURL"]?.toString() ?? item["image_url"]?.toString() ?? ""; // Store image URL
+        debugPrint("🎯 [ReviewScreen] Item keys for ${item["item"]}: ${item.keys.toList()}");
+        debugPrint("🎯 [ReviewScreen] Image mapping for ${item["item"]}: ${_imageMap[id]}");
+
+        // Use match percentage from backend if available, default to 100
+        final matchPercent = int.tryParse(item["match"]?.toString() ?? item["match%"]?.toString() ?? "100") ?? 100;
+
+        return IngredientModel(
+          id: id,
+          emoji: ItemImageResolver.getEmojiForIngredient(item["item"]?.toString() ?? ""),
+          name: item["item"]?.toString() ?? "",
+          match: matchPercent,
+        );
+      }).toList();
+
+      final fetchEndTime = DateTime.now();
+      debugPrint("🎯 [ReviewScreen] Ingredient fetch completed at: ${fetchEndTime.millisecondsSinceEpoch}");
+      debugPrint("⏱️ [ReviewScreen] Fetch time: ${fetchEndTime.difference(fetchStartTime).inMilliseconds}ms");
+
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint("❌ [ReviewScreen] Fetch failed: $e");
+      setState(() {
+        _error = "Failed: $e";
+        _isLoading = false;
+      });
+    }
+  }
+
+  // =====================================================
+  // ADD INGREDIENT (NAME + METRIC + QUANTITY)
+  // =====================================================
+  Future<void> _showAddIngredientDialog() async {
+    final nameController = TextEditingController();
+    final metricController = TextEditingController();
+    final quantityController = TextEditingController(text: "1");
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Add Ingredient"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration:
+                  const InputDecoration(labelText: "Ingredient name"),
+            ),
+            TextField(
+              controller: metricController,
+              decoration: const InputDecoration(labelText: "Metric"),
+              keyboardType: TextInputType.text,
+            ),
+            TextField(
+              controller: quantityController,
+              decoration: const InputDecoration(labelText: "Quantity"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                final id = DateTime.now().microsecondsSinceEpoch.toString();
+                setState(() {
+                  _ingredients.add(IngredientModel(
+                    id: id,
+                    emoji: ItemImageResolver.getEmojiForIngredient(nameController.text),
+                    name: nameController.text,
+                    match: 100,
+                  ));
+                  _priceMap[id] = 0.0; // Price not used in pantry
+                  _quantityMap[id] = int.tryParse(quantityController.text) ?? 1;
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("Add"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // EDIT INGREDIENT
+  // =====================================================
+  Future<void> _editIngredient(IngredientModel ingredient) async {
+    final nameController = TextEditingController(text: ingredient.name);
+    final metricController = TextEditingController(
+        text: "");
+    final quantityController = TextEditingController(
+        text: _quantityMap[ingredient.id]?.toString() ?? "1");
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Edit Ingredient"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration:
+                  const InputDecoration(labelText: "Ingredient name"),
+            ),
+            TextField(
+              controller: metricController,
+              decoration: const InputDecoration(labelText: "Metric"),
+              keyboardType: TextInputType.text,
+            ),
+            TextField(
+              controller: quantityController,
+              decoration: const InputDecoration(labelText: "Quantity"),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              if (nameController.text.isNotEmpty) {
+                setState(() {
+                  // Update ingredient
+                  final index = _ingredients.indexWhere((i) => i.id == ingredient.id);
+                  if (index != -1) {
+                    _ingredients[index] = IngredientModel(
+                      id: ingredient.id,
+                      emoji: ItemImageResolver.getEmojiForIngredient(nameController.text),
+                      name: nameController.text,
+                      match: ingredient.match,
+                    );
+                    _priceMap[ingredient.id!] = 0.0; // Price not used in pantry
+                    _quantityMap[ingredient.id!] = int.tryParse(quantityController.text) ?? 1;
+                  }
+                });
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================
+  // REMOVE INGREDIENT
+  // =====================================================
+  void _removeIngredient(String id) {
     setState(() {
-      _filteredItems.removeAt(index);
+      _ingredients.removeWhere((i) => i.id == id);
+      _priceMap.remove(id);
+      _quantityMap.remove(id);
+      _imageMap.remove(id); // Remove image URL
     });
   }
 
+  // =====================================================
+  // BUILD UI
+  // =====================================================
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: Text(_error!),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: PreferredSize(
@@ -592,9 +812,7 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
                     child: _circleIcon(Icons.arrow_back),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      // TODO: Navigate to add more ingredients
-                    },
+                    onTap: _showAddIngredientDialog,
                     child: _addMoreBtn(),
                   ),
                 ],
@@ -613,104 +831,20 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
         children: [
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _filteredItems.length,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              itemCount: _ingredients.length,
               itemBuilder: (context, index) {
-                final item = _filteredItems[index];
-                final name = item['item'] ?? item['name'] ?? 'Unknown Item';
-                final price = item['price']?.toString() ?? '1.0';
-                final quantity = item['quantity']?.toString() ?? '1';
+                final ingredient = _ingredients[index];
+                final quantity = _quantityMap[ingredient.id] ?? 1;
 
-                if (kDebugMode) {
-                  print('🔍 ReviewIngredients: Building item with name: "$name"');
-                }
-
-                return Column(
-                  children: [
-                    Padding(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              // Profile image
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade100,
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(16),
-                                  child: ItemImageResolver.getImageWidget(
-                                    name,
-                                    size: 30,
-                                  ),
-                                ),
-                              ),
-                              
-                              const SizedBox(width: 14),
-                              
-                              // Name + match text
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      name,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 19,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'match: 100%',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        color: Colors.black.withOpacity(0.55),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              
-                              // Remove button (x)
-                              GestureDetector(
-                                onTap: () => _removeItem(index),
-                                child: Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFFFFE5E5),
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 16,
-                                    color: Color(0xFFFF6A6A),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            "Price: ₹$price   |   Quantity: $quantity",
-                            style: TextStyle(
-                              fontSize: 13.5,
-                              color: Colors.black.withOpacity(0.6),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Divider(color: Colors.black.withOpacity(0.06)),
-                  ],
+                return IngredientRow(
+                  emoji: ingredient.emoji,
+                  name: ingredient.name,
+                  matchPercent: ingredient.match,
+                  quantity: quantity,
+                  onRemove: () => _removeIngredient(ingredient.id!),
+                  onEdit: () => _editIngredient(ingredient),
+                  imageUrl: _imageMap[ingredient.id], // Pass image URL
                 );
               },
             ),
@@ -734,229 +868,136 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
             ),
             child: GestureDetector(
               onTap: () async {
-                  // Add ingredients to pantry using actual service
-                  try {
-                    // Show loading indicator
-                    showDialog(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (context) => const Center(
-                        child: CircularProgressIndicator(color: Color(0xFFFF7A4A)),
-                      ),
+                try {
+                  // Show loading indicator
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) => const Center(
+                      child: CircularProgressIndicator(color: Color(0xFFFF7A4A)),
+                    ),
+                  );
+
+                  // Prepare items for pantry service
+                  final pantryItems = _ingredients.map((ingredient) {
+                    return {
+                      'name': ingredient.name,
+                      'quantity': (_quantityMap[ingredient.id] ?? 1).toDouble(),
+                      'unit': 'pcs',
+                      'imageUrl': _imageMap[ingredient.id], // Include imageUrl
+                    };
+                  }).toList();
+
+                  // Always update local state
+                  final pantryState = Provider.of<PantryState>(context, listen: false);
+                  final shoppingListService = Provider.of<ShoppingListService>(context, listen: false);
+                  
+                  int duplicateCount = 0;
+                  int addedCount = 0;
+                  
+                  // Add each item to local pantry state with duplicate check
+                  for (var item in pantryItems) {
+                    final itemName = item['name'] as String;
+                    
+                    // Check if item already exists in pantry
+                    final existingItem = pantryState.pantryItems.firstWhere(
+                      (pantryItem) => pantryItem.name.toLowerCase() == itemName.toLowerCase(),
+                      orElse: () => PantryItem(name: '', quantity: 0, unit: ''),
                     );
-
-                    // Prepare items for pantry service
-                    final pantryItems = _filteredItems.map((item) {
-                      return {
-                        'name': item['item'] ?? item['name'] ?? 'Unknown Item',
-                        'quantity': double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0,
-                        'unit': item['unit'] ?? 'pcs',
-                      };
-                    }).toList();
-
-                    // Call pantry service to save items
-                    final pantryService = PantryAddService();
-                    var backendSuccess = false;
-                    var backendError = '';
                     
-                    try {
-                      backendSuccess = await pantryService.saveToPantry(pantryItems);
-                    } catch (e) {
-                      debugPrint('Backend error: $e');
-                      backendError = e.toString();
-                      backendSuccess = false;
-                    }
-
-                    // Close loading indicator
-                    if (mounted) {
-                      Navigator.pop(context); // Close loading dialog
-                      
-                      // Always update local state
-                      final pantryState = Provider.of<PantryState>(context, listen: false);
-                      final shoppingListService = Provider.of<ShoppingListService>(context, listen: false);
-                      
-                      int duplicateCount = 0;
-                      int addedCount = 0;
-                      
-                      // Add each item to local pantry state with duplicate check
-                      for (var item in pantryItems) {
-                        final itemName = item['name'] as String;
-                        
-                        // Check if item already exists in pantry
-                        final existingItem = pantryState.pantryItems.firstWhere(
-                          (pantryItem) => pantryItem.name.toLowerCase() == itemName.toLowerCase(),
-                          orElse: () => PantryItem(name: '', quantity: 0, unit: ''),
-                        );
-                        
-                        if (existingItem.name.isNotEmpty) {
-                          // Item already exists, update quantity instead of adding duplicate
-                          await pantryState.setItem(
-                            itemName,
-                            existingItem.quantity + (item['quantity'] as double),
-                            item['unit'] as String,
-                          );
-                          duplicateCount++;
-                        } else {
-                          // New item, add to pantry
-                          await pantryState.setItem(
-                            itemName,
-                            item['quantity'] as double,
-                            item['unit'] as String,
-                          );
-                          addedCount++;
-                        }
-                        
-                        // Also add to shopping list (only if not already there)
-                        if (!shoppingListService.isAdded(itemName)) {
-                          shoppingListService.addItem(
-                            name: itemName,
-                            quantity: item['quantity'].toString(),
-                            unit: item['unit'] as String,
-                            category: 'scanned',
-                          );
-                        }
-                      }
-                      
-                      // Show detailed success message
-                      String message = 'Items Added successfully';
-                      if (duplicateCount > 0 && addedCount > 0) {
-                        message = 'Added $addedCount new items, updated $duplicateCount duplicates';
-                      } else if (duplicateCount > 0) {
-                        message = 'Updated $duplicateCount existing items';
-                      } else if (addedCount > 0) {
-                        message = 'Added $addedCount new items';
-                      }
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(message),
-                          backgroundColor: Colors.green,
-                          duration: const Duration(seconds: 3),
-                        ),
+                    if (existingItem.name.isNotEmpty) {
+                      // Item already exists, update quantity instead of adding duplicate
+                      await pantryState.setItem(
+                        itemName,
+                        existingItem.quantity + (item['quantity'] as double),
+                        item['unit'] as String,
+                        imageUrl: item['imageUrl'] as String?, // Pass imageUrl for duplicates too
                       );
-                      
-                      // Navigate to pantry page to show the items
-                      Navigator.pushAndRemoveUntil(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PantryHomeScreen(),
-                        ),
-                        (route) => false,
+                      duplicateCount++;
+                    } else {
+                      // New item, add to pantry
+                      await pantryState.setItem(
+                        itemName,
+                        item['quantity'] as double,
+                        item['unit'] as String,
+                        imageUrl: item['imageUrl'] as String?, // Pass imageUrl for new items too
                       );
-                    }
-                  } catch (error) {
-                    debugPrint('Error adding to pantry: $error');
-                    
-                    // Close loading indicator
-                    if (mounted) {
-                      Navigator.pop(context); // Close loading dialog
-                      
-                      // Still try to save locally even on error
-                      try {
-                        final pantryItems = _filteredItems.map((item) {
-                          return {
-                            'name': item['item'] ?? item['name'] ?? 'Unknown Item',
-                            'quantity': double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0,
-                            'unit': item['unit'] ?? 'pcs',
-                          };
-                        }).toList();
-                        
-                        final pantryState = Provider.of<PantryState>(context, listen: false);
-                        final shoppingListService = Provider.of<ShoppingListService>(context, listen: false);
-                        
-                        int duplicateCount = 0;
-                        int addedCount = 0;
-                        
-                        for (var item in pantryItems) {
-                          final itemName = item['name'] as String;
-                          
-                          // Check if item already exists in pantry
-                          final existingItem = pantryState.pantryItems.firstWhere(
-                            (pantryItem) => pantryItem.name.toLowerCase() == itemName.toLowerCase(),
-                            orElse: () => PantryItem(name: '', quantity: 0, unit: ''),
-                          );
-                          
-                          if (existingItem.name.isNotEmpty) {
-                            // Item already exists, update quantity instead of adding duplicate
-                            await pantryState.setItem(
-                              itemName,
-                              existingItem.quantity + (item['quantity'] as double),
-                              item['unit'] as String,
-                            );
-                            duplicateCount++;
-                          } else {
-                            // New item, add to pantry
-                            await pantryState.setItem(
-                              itemName,
-                              item['quantity'] as double,
-                              item['unit'] as String,
-                            );
-                            addedCount++;
-                          }
-                          
-                          // Also add to shopping list (only if not already there)
-                          if (!shoppingListService.isAdded(itemName)) {
-                            shoppingListService.addItem(
-                              name: itemName,
-                              quantity: item['quantity'].toString(),
-                              unit: item['unit'] as String,
-                              category: 'scanned',
-                            );
-                          }
-                        }
-                        
-                        // Show detailed success message
-                        String message = 'Items Added successfully';
-                        if (duplicateCount > 0 && addedCount > 0) {
-                          message = 'Added $addedCount new items, updated $duplicateCount duplicates';
-                        } else if (duplicateCount > 0) {
-                          message = 'Updated $duplicateCount existing items';
-                        } else if (addedCount > 0) {
-                          message = 'Added $addedCount new items';
-                        }
-                        
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(message),
-                            backgroundColor: Colors.green,
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                        
-                        // Navigate to pantry page
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => PantryHomeScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      } catch (localError) {
-                        // Show error message if even local save fails
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Failed to add items to pantry: $error'),
-                            backgroundColor: Colors.red,
-                            duration: const Duration(seconds: 3),
-                          ),
-                        );
-                      }
+                      addedCount++;
                     }
                   }
-                },
+                  
+                  String message;
+                  if (addedCount > 0 && duplicateCount > 0) {
+                    message = 'Added $addedCount new items, updated $duplicateCount duplicates';
+                  } else if (duplicateCount > 0) {
+                    message = 'Updated $duplicateCount existing items';
+                  } else if (addedCount > 0) {
+                    message = 'Added $addedCount new items';
+                  } else {
+                    message = 'No items were added';
+                  }
+                      
+                  // Close loading indicator
+                  if (mounted) {
+                    Navigator.pop(context); // Close loading dialog
+                    
+                    // Show success message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(message),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                    
+                    // Clear the navigation stack and go directly to pantry home
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PantryHomeScreen(),
+                      ),
+                      (route) => false, // Remove all previous routes
+                    );
+                  }
+                } catch (error) {
+                  debugPrint('Error adding to pantry: $error');
+                  
+                  // Close loading indicator
+                  if (mounted) {
+                    Navigator.pop(context); // Close loading dialog
+                    
+                    // Show error message
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Failed to add items to pantry'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
               child: Container(
-                height: 60,
+                width: double.infinity,
+                height: 54,
                 decoration: BoxDecoration(
                   color: const Color(0xFFFF7A4A),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF7A4A).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
                 child: const Center(
                   child: Text(
                     'Add to Pantry',
                     style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 17,
-                        color: Colors.white),
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -966,15 +1007,15 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
       ),
     );
   }
-  
-  // Helper methods for UI components
+
   Widget _circleIcon(IconData icon) {
     return Container(
-      height: 42,
-      width: 42,
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.black.withOpacity(0.15)),
+        color: Colors.grey.shade100,
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Icon(icon, size: 20),
     );
@@ -982,22 +1023,16 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
 
   Widget _addMoreBtn() {
     return Container(
-      height: 38,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      width: 44,
+      height: 44,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        color: const Color(0xFFFFF0E9),
-        border:
-            const Border.fromBorderSide(BorderSide(color: Color(0xFFFF7A4A))),
+        shape: BoxShape.circle,
+        color: const Color(0xFFFF7A4A),
       ),
-      child: const Center(
-        child: Text(
-          "Add more",
-          style: TextStyle(
-              color: Color(0xFFFF7A4A),
-              fontWeight: FontWeight.w600,
-              fontSize: 14.5),
-        ),
+      child: const Icon(
+        Icons.add,
+        color: Colors.white,
+        size: 24,
       ),
     );
   }

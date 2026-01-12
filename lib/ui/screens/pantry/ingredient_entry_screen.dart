@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'pantry_review_ingredients_screen.dart';
 import '../../data/services/pantry_add_service.dart';
 
@@ -23,19 +24,95 @@ class _IngredientEntryScreenState extends State<IngredientEntryScreen> {
 
   Future<void> _pickImage() async {
     try {
+      // Show immediate feedback
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Opening camera...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+            backgroundColor: Colors.black87,
+          ),
+        );
+      }
+
+      // Request camera permission first
+      final cameraPermission = await Permission.camera.request();
+      
+      if (cameraPermission.isDenied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Camera permission is required to take photos'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+      
+      if (cameraPermission.isPermanentlyDenied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Camera Permission Required'),
+              content: const Text('Please enable camera permission in app settings to use this feature.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    openAppSettings();
+                  },
+                  child: const Text('Settings'),
+                ),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
       final XFile? image = await _picker.pickImage(
         source: ImageSource.camera,
         imageQuality: 85,
       );
       
+      // Clear feedback snackbar
+      if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      
       if (image != null) {
         await _processImage(image);
       }
     } catch (e) {
+      // Clear feedback snackbar
+      if (mounted) ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      
       debugPrint("Error picking image: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to capture image')),
+          SnackBar(
+            content: Text('Failed to capture image: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

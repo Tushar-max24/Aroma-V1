@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/utils/item_image_resolver.dart';
+import '../../../data/services/enhanced_ingredient_image_service.dart';
+import '../../../ui/widgets/ingredient_image_widget.dart';
 
 // ===============================
 // INGREDIENT SECTION (DYNAMIC)
@@ -55,6 +57,9 @@ class IngredientSection extends StatelessWidget {
           children: ingredientData.map((item) {
             final name = item['item']?.toString() ?? '';
             final qty = item['quantity'] ?? 1;
+            final imageUrl = item['image_url']?.toString() ?? 
+                           item['imageUrl']?.toString() ?? 
+                           item['image']?.toString() ?? '';
 
             return IngredientTile(
               name: name,
@@ -62,6 +67,7 @@ class IngredientSection extends StatelessWidget {
               icon: _emojiForIngredient(name),
               isAvailable:
                   availableIngredients.contains(name.toLowerCase()),
+              imageUrl: imageUrl, // Pass the image URL from backend
             );
           }).toList(),
         ),
@@ -92,6 +98,7 @@ class IngredientTile extends StatelessWidget {
   final String quantity;
   final String icon;
   final bool isAvailable;
+  final String? imageUrl; // Add imageUrl parameter
 
   const IngredientTile({
     super.key,
@@ -99,6 +106,7 @@ class IngredientTile extends StatelessWidget {
     required this.quantity,
     required this.icon,
     this.isAvailable = false,
+    this.imageUrl, // Add to constructor
   });
 
   @override
@@ -118,10 +126,12 @@ class IngredientTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Dynamic ingredient image instead of emoji
-          ItemImageResolver.getImageWidget(
-            name,
-            size: 24,
+          // Dynamic ingredient image with MongoDB-first caching
+          IngredientImageWidget(
+            ingredientName: name,
+            width: 24,
+            height: 24,
+            imageUrl: imageUrl, // Pass the backend S3 URL
           ),
           const SizedBox(width: 8),
           Expanded(

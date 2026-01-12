@@ -19,8 +19,11 @@ import '../calendar/calendar_empty_screen.dart';
 import '../pantry/pantry_empty_screen.dart';
 import '../pantry/pantry_root_screen.dart';
 import '../../../core/enums/scan_mode.dart';
-import 'recipe_detail_screen.dart';
+import '../recipe_detail/recipe_detail_screen.dart';
 import '../../../widgets/primary_button.dart';
+import '../../widgets/web_banner.dart';
+import 'generate_recipe_screen.dart';
+import 'pantry_selection_screen.dart';
 
 class SpringScrollPhysics extends ScrollPhysics {
   const SpringScrollPhysics({ScrollPhysics? parent}) : super(parent: parent);
@@ -173,6 +176,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    debugPrint('HomeScreen initialized with phone number: ${widget.phoneNumber}');
     
     _pageController = PageController(
       viewportFraction: 0.85,
@@ -388,28 +392,50 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   void _navigateToRecipeDetail(RecipeModel recipe) {
+    // Use the full backend data if available, otherwise create basic structure
+    final fullRecipeData = recipe.fullRecipeData ?? {
+      'description': recipe.description ?? '',
+      'nutrition': {
+        'calories': recipe.calories,
+        'protein': 0,
+        'carbs': 0,
+        'fats': 0,
+      },
+      'cooking_steps': recipe.instructions.map((instruction) => {
+        'instruction': instruction,
+        'ingredients': [],
+        'tips': [],
+      }).toList(),
+      'tags': {
+        'cookware': [],
+      },
+      'ingredients': recipe.ingredients.map((ingredient) => {
+        'item': ingredient,
+        'quantity': '1',
+      }).toList(),
+    };
+
+    // Convert string ingredients to Map format for RecipeDetailScreen
+    final ingredientMaps = (fullRecipeData['ingredients'] as List<dynamic>?)
+        ?.map((ing) => ing as Map<String, dynamic>)
+        .toList() ?? 
+        recipe.ingredients.map((ingredient) => {
+          'item': ingredient,
+          'quantity': '1',
+        }).toList();
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => RecipeDetailScreen(recipeId: recipe.id),
-      ),
-    );
-  }
-
-  Widget _buildLoadMoreButton() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: ElevatedButton(
-        onPressed: _loadMoreRecipes,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Theme.of(context).primaryColor,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+        builder: (context) => RecipeDetailScreen(
+          image: recipe.image,
+          title: recipe.title,
+          ingredients: ingredientMaps,
+          cuisine: recipe.cuisine,
+          cookTime: recipe.cookTime,
+          servings: recipe.servings,
+          fullRecipeData: fullRecipeData,
         ),
-        child: const Text('Load More'),
       ),
     );
   }
@@ -508,21 +534,32 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context, listen: false);
+    debugPrint('=== HOMESCREEN BUILD DEBUG ===');
+    final authService = Provider.of<AuthService>(context, listen: true);
     final theme = Theme.of(context);
     
+    debugPrint('AuthService.isAuthenticated: ${authService.isAuthenticated}');
+    debugPrint('AuthService.user: ${authService.user}');
+    debugPrint('AuthService.user.name: ${authService.user?.name}');
+    debugPrint('Current route: ${ModalRoute.of(context)?.settings.name}');
+    debugPrint('Widget mounted: $mounted');
+    
     if (!authService.isAuthenticated) {
+      debugPrint('User not authenticated, redirecting to login...');
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint('Executing redirect to login...');
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false,
         );
       });
+      debugPrint('Returning loading scaffold while redirecting...');
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
+    debugPrint('User authenticated, building HomeScreen UI...');
     return Consumer<HomeProvider>(
       builder: (BuildContext context, HomeProvider provider, _) {
         if (provider.isLoading && provider.recipes.isEmpty) {
@@ -600,7 +637,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                           style: TextStyle(fontSize: 28),
                                         ),
                                         TextSpan(
-                                          text: '\nGuest',
+                                          text: '\n${authService.user?.name ?? 'Guest'}',
                                           style: TextStyle(
                                             color: const Color(0xFFFF4500),
                                             fontSize: Theme.of(context).textTheme.headlineMedium?.fontSize != null 
@@ -719,7 +756,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           RepaintBoundary(
                             child: _buildPageIndicator(),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 16),
+                          const WebBanner(),
+                          const SizedBox(height: 24),
                           RepaintBoundary(
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -884,6 +923,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
                 IconButton(
                   onPressed: () {
+                    print("🔍 DEBUG: Calendar icon clicked - navigating to CalendarEmptyScreen");
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -893,7 +933,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   },
                   icon: const Icon(
                     Icons.calendar_month_outlined,
-                    color: Color(0xFFB0B0B0),
+                    color: Color(0xFFFC6E3C),
                   ),
                 ),
                 IconButton(

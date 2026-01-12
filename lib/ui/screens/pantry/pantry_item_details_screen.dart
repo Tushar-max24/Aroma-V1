@@ -35,7 +35,11 @@ class _PantryItemDetailsScreenState extends State<PantryItemDetailsScreen> {
     final name = widget.item['name'];
     final unit = widget.item['unit'] ?? 'kg';
     final category = CategoryEngine.getCategory(name);
-    final imagePath = ItemImageResolver.getImage(name);
+    final imagePath = ItemImageResolver.getImageWidget(
+                          name,
+                          size: 120,
+                          imageUrl: widget.item['imageUrl'], // Pass imageUrl parameter
+                        );
 
     final pantry = context.watch<PantryState>();
 
@@ -73,13 +77,11 @@ final List<FlSpot> usageSpots = List.generate(7, (index) {
               // 🖼 IMAGE + TITLE
               Row(
                 children: [
-                  Image.asset(
-                    imagePath,
-                    height: 60,
-                    width: 60,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.fastfood, size: 60),
+                  // Dynamic ingredient image with S3 URL support
+                  ItemImageResolver.getImageWidget(
+                    name,
+                    size: 60,
+                    imageUrl: widget.item['imageUrl'], // Pass imageUrl parameter
                   ),
                   const SizedBox(width: 12),
                   Column(
@@ -176,6 +178,31 @@ final List<FlSpot> usageSpots = List.generate(7, (index) {
               const SizedBox(height: 24),
               const Divider(),
 
+              // 📊 MACROS SECTION
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Nutritional Information",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Try to get macros from pantry item data
+                    _buildMacrosDisplay(),
+                  ],
+                ),
+              ),
+              
               // 📈 USAGE TREND (STATIC UI)
               const Text(
                 "Usage Trend",
@@ -276,7 +303,7 @@ final List<FlSpot> usageSpots = List.generate(7, (index) {
     );
   }
 
-  // ➕➖ BUTTON
+  // BUTTON
   Widget _qtyButton(String label, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
@@ -292,6 +319,39 @@ final List<FlSpot> usageSpots = List.generate(7, (index) {
         ),
       ),
     );
+  }
+
+  // Try to get macros from pantry item data
+  Widget _buildMacrosDisplay() {
+    // Check if pantry item has macros data
+    if (widget.item['macros'] != null && widget.item['macros'] is Map) {
+      final macros = widget.item['macros'] as Map<String, dynamic>;
+      
+      return Column(
+        children: [
+          _macroRow("Calories", "${macros['calories_kcal'] ?? 0} kcal"),
+          _macroRow("Carbohydrates", "${macros['carbohydrates_g'] ?? 0} g"),
+          _macroRow("Protein", "${macros['protein_g'] ?? 0} g"),
+          _macroRow("Fat", "${macros['fat_g'] ?? 0} g"),
+          _macroRow("Fiber", "${macros['fiber_g'] ?? 0} g"),
+          _macroRow("Sugar", "${macros['sugar_g'] ?? 0} g"),
+        ],
+      );
+    } else {
+      // Fallback if no macros data available
+      return const Column(
+        children: [
+          Text(
+            "Macros not available",
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      );
+    }
   }
 
   // 🧪 MACRO ROW

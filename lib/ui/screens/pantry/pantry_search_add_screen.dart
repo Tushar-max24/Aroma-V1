@@ -205,6 +205,7 @@ class _PantrySearchAddScreenState extends State<PantrySearchAddScreen> {
                           quantity: quantity,
                           unit: selectedUnit,
                           category: "Pantry",
+                          imageUrl: null, // No imageUrl available in this screen
                         );
 
                         setState(() {

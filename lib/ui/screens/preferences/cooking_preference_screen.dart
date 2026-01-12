@@ -344,12 +344,13 @@ class _CookingPreferenceScreenState extends State<CookingPreferenceScreen> {
         }
 
         final pref = {
-          "meal_type": _selectedPerSection["Meal Type"],
-          "diet": _selectedPerSection["Dietary Restrictions"],
-          "cookware": _selectedPerSection["Cookware & Utensils"],
-          "time": _selectedPerSection["Cooking Time"],
-          "cuisine": _selectedPerSection["Cuisine Preference"],
-          "servings": servingCount.toString(),
+          "Cuisine_Preference": _selectedPerSection["Cuisine Preference"],
+          "Dietary_Restrictions": _selectedPerSection["Dietary Restrictions"],
+          "Cookware_Available": [_selectedPerSection["Cookware & Utensils"]],
+          "Meal_Type": [_selectedPerSection["Meal Type"]],
+          "Cooking_Time": _selectedPerSection["Cooking Time"],
+          "Serving": servingCount,
+          "Ingredients_Available": _workingIngredients,
         };
 
         Navigator.push(

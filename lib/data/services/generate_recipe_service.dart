@@ -1,11 +1,16 @@
 // lib/data/services/generate_recipe_service.dart
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
 class GenerateRecipeService {
-  static const String _recipeUrl = "http://3.108.110.151:5001/generate-recipes-ingredient";
-  static const String _imageUrl = "http://3.108.110.151:5001/generate-dish-image";
+  // Use environment variables for API endpoints
+  static String _baseUrl = dotenv.env['MONGO_EXTERNAL_API_URL'] ?? "http://3.108.110.151:5001";
+  static String _localBaseUrl = dotenv.env['MONGO_API_BASE_URL'] ?? "http://localhost:3000";
+  static String get _recipeUrl => "$_baseUrl/generate-recipes-ingredient";
+  static String get _imageUrl => "$_baseUrl/generate-dish-image";
   
   // Default timeout duration for API calls
   static const Duration _timeoutDuration = Duration(seconds: 30);
@@ -95,6 +100,43 @@ class GenerateRecipeService {
     } else {
       print('📌 $apiName Response: $response');
     }
+  }
+
+  /// Test connection to MongoDB server for recipe generation
+  static Future<bool> testConnection() async {
+    debugPrint("🔄 Testing recipe service connection to $_baseUrl...");
+    
+    // List of URLs to try in order
+    final urls = [
+      "$_baseUrl/api/health",
+      "$_localBaseUrl/api/health",
+      "http://127.0.0.1:3000/api/health",
+      "http://10.231.82.169:3000/api/health",
+    ];
+    
+    for (int i = 0; i < urls.length; i++) {
+      final url = urls[i];
+      debugPrint("🔍 Trying recipe connection ${i + 1}/${urls.length}: $url");
+      
+      try {
+        final response = await http.get(Uri.parse(url)).timeout(Duration(seconds: 3));
+        
+        debugPrint("📌 Recipe Health Check Response: ${response.statusCode}");
+        
+        if (response.statusCode == 200) {
+          debugPrint("✅ Recipe service connection successful to: $url");
+          // Update base URL for future requests
+          _baseUrl = url.replaceAll('/api/health', '');
+          return true;
+        }
+      } catch (e) {
+        debugPrint("⚠️ Recipe connection failed to $url: $e");
+        continue;
+      }
+    }
+    
+    debugPrint("❌ All recipe service connection attempts failed");
+    return false;
   }
 
   // Helper method to log errors

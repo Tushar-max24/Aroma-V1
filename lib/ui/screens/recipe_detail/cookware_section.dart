@@ -12,6 +12,11 @@ class CookwareSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🍳 CookwareSection build called with ${cookwareItems.length} items: $cookwareItems');
+    debugPrint('🍳 CookwareSection: cookwareItems.isEmpty = ${cookwareItems.isEmpty}');
+    debugPrint('🍳 CookwareSection: cookwareItems.length = ${cookwareItems.length}');
+    debugPrint('🍳 CookwareSection: cookwareItems = $cookwareItems');
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -40,6 +45,7 @@ class CookwareSection extends StatelessWidget {
         const SizedBox(height: 14),
 
         /// --- AI DATA ---
+        
         if (cookwareItems.isEmpty)
           Container(
             padding: const EdgeInsets.all(14),
@@ -47,13 +53,26 @@ class CookwareSection extends StatelessWidget {
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Text(
-              "Fetching cookware details...",
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.orange,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  "No cookware information available",
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Items count: ${cookwareItems.length}",
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
             ),
           )
         else

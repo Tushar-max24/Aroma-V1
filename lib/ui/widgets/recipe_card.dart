@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../screens/add_ingredients/capture_preview_screen.dart';
+import '../screens/recipe_detail/recipe_detail_screen.dart';
 import '../../data/models/recipe_model.dart';
 import '../../state/home_provider.dart';
 import '../../core/enums/scan_mode.dart';
@@ -13,6 +14,56 @@ class RecipeCard extends StatelessWidget {
 
   final RecipeModel recipe;
   final bool isActive;
+
+  // Navigate to recipe detail screen
+  void _navigateToRecipeDetail(BuildContext context, RecipeModel recipe) {
+    // Use the full backend data if available, otherwise create basic structure
+    final fullRecipeData = recipe.fullRecipeData ?? {
+      'description': recipe.description ?? '',
+      'nutrition': {
+        'calories': recipe.calories,
+        'protein': 0,
+        'carbs': 0,
+        'fats': 0,
+      },
+      'cooking_steps': recipe.instructions.map((instruction) => {
+        'instruction': instruction,
+        'ingredients': [],
+        'tips': [],
+      }).toList(),
+      'tags': {
+        'cookware': [],
+      },
+      'ingredients': recipe.ingredients.map((ingredient) => {
+        'item': ingredient,
+        'quantity': '1',
+      }).toList(),
+    };
+
+    // Convert string ingredients to Map format for RecipeDetailScreen
+    final ingredientMaps = (fullRecipeData['ingredients'] as List<dynamic>?)
+        ?.map((ing) => ing as Map<String, dynamic>)
+        .toList() ?? 
+        recipe.ingredients.map((ingredient) => {
+          'item': ingredient,
+          'quantity': '1',
+        }).toList();
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecipeDetailScreen(
+          image: recipe.image,
+          title: recipe.title,
+          ingredients: ingredientMaps,
+          cuisine: recipe.cuisine,
+          cookTime: recipe.cookTime,
+          servings: recipe.servings,
+          fullRecipeData: fullRecipeData,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,13 +203,7 @@ class RecipeCard extends StatelessWidget {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<Widget>(
-                              builder: (BuildContext _) => const CapturePreviewScreen(
-                                mode: ScanMode.pantry,
-                              ),
-                            ),
-                          );
+                          _navigateToRecipeDetail(context, recipe);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,

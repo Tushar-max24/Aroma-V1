@@ -5,9 +5,101 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../state/pantry_state.dart';
 import '../../../core/utils/item_image_resolver.dart';
 import '../../../data/services/shopping_list_service.dart';
+import '../../../data/services/ingredient_metrics_service.dart';
 
-class ShoppingListScreen extends StatelessWidget {
+class ShoppingListScreen extends StatefulWidget {
   const ShoppingListScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ShoppingListScreen> createState() => _ShoppingListScreenState();
+}
+
+class _ShoppingListScreenState extends State<ShoppingListScreen> {
+  final IngredientMetricsService _metricsService = IngredientMetricsService();
+  bool _metricsLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMetrics();
+    _loadShoppingList();
+  }
+
+  Future<void> _loadShoppingList() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
+    debugPrint('ShoppingListScreen: Force loading shopping list data...');
+    debugPrint('ShoppingListScreen: Items count after load: ${shoppingService.items.length}');
+  }
+
+  Future<void> _loadMetrics() async {
+    await _metricsService.loadMetrics();
+    setState(() {
+      _metricsLoaded = true;
+    });
+  }
+  // ---------------- EDIT ITEM ----------------
+  Future<void> _editItem(String name, String currentQuantity, String currentUnit) async {
+    final quantityController = TextEditingController(text: currentQuantity);
+    final unitController = TextEditingController(text: currentUnit);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit $name"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: quantityController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Quantity",
+                hintText: "Enter quantity"
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: unitController,
+              decoration: InputDecoration(
+                labelText: "Unit/Metric",
+                hintText: "e.g., kg, g, pcs, liters",
+                helperText: "Suggested: ${_metricsService.getMetricsForIngredient(name)}",
+                helperStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              final newQuantity = quantityController.text.trim();
+              String newUnit = unitController.text.trim().isNotEmpty ? unitController.text.trim() : currentUnit;
+              
+              // If user didn't enter a unit, use the suggested metric
+              if (newUnit == currentUnit && unitController.text.trim().isEmpty) {
+                final suggestedMetric = _metricsService.getMetricsForIngredient(name);
+                if (suggestedMetric.isNotEmpty) {
+                  newUnit = suggestedMetric;
+                }
+              }
+              
+              if (newQuantity.isNotEmpty && newUnit.isNotEmpty) {
+                final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
+                shoppingService.updateItem(name, newQuantity, newUnit);
+              }
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _shareShoppingList(List<Map<String, dynamic>> items) {
     if (items.isEmpty) return;
@@ -31,14 +123,20 @@ class ShoppingListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pantry = context.watch<PantryState>();
+    final shoppingService = context.watch<ShoppingListService>();
+    final shoppingItems = shoppingService.items;
+    
+    // Debug logging
+    debugPrint('=== Shopping List Debug ===');
+    debugPrint('Total items: ${shoppingItems.length}');
+    for (var item in shoppingItems) {
+      debugPrint('Item: ${item['name']}, Qty: ${item['quantity']}, Unit: ${item['unit']}, ImageUrl: ${item['imageUrl']}');
+    }
+    debugPrint('==========================');
 
-    return Consumer<ShoppingListService>(
-      builder: (context, service, _) {
-        final shoppingItems = service.items;
-
-        bool needsToBuy(String item, double requiredQty) {
-          return pantry.getQty(item) < requiredQty;
-        }
+    bool needsToBuy(String item, double requiredQty) {
+      return pantry.getQty(item) < requiredQty;
+    }
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -60,7 +158,7 @@ class ShoppingListScreen extends StatelessWidget {
             actions: [
               if (shoppingItems.isNotEmpty)
                 TextButton(
-                  onPressed: service.clearAll,
+                  onPressed: shoppingService.clearAll,
                   child: const Text(
                     "Clear All",
                     style: TextStyle(color: Colors.red),
@@ -69,105 +167,192 @@ class ShoppingListScreen extends StatelessWidget {
             ],
           ),
 
-          body: shoppingItems.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.shopping_cart_outlined,
-                        size: 64,
-                        color: Colors.grey.shade300,
+          body: Column(
+            children: [
+              // Show count header even when empty
+              Container(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(Icons.shopping_cart, color: Colors.orange.shade600),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${shoppingItems.length} items in shopping list',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade700,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Your shopping list is empty',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 18,
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: shoppingItems.length,
-                  itemBuilder: (context, index) {
-                    final item = shoppingItems[index];
-
-                    final double requiredQty = _parseQty(item['quantity']);
-
-final bool stillNeeded = needsToBuy(
-  item['name'],
-  requiredQty,
-);
-
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.1),
-                            spreadRadius: 1,
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.grey.shade200,
-                          child: ItemImageResolver.getImageWidget(
-                            item['name'],
-                            size: 40,
-                          ),
-                        ),
-                        title: Row(
+                    ),
+                  ],
+                ),
+              ),
+              
+              Expanded(
+                child: shoppingItems.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Expanded(
-                              child: Text(
-                                item['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 16,
-                                ),
+                            Icon(
+                              Icons.shopping_cart_outlined,
+                              size: 64,
+                              color: Colors.grey.shade300,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Your shopping list is empty',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 18,
                               ),
                             ),
-                            if (stillNeeded)
-                              const Icon(
-                                Icons.warning_amber_rounded,
-                                color: Colors.orange,
-                                size: 18,
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add items from low stock or pantry',
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 14,
                               ),
+                            ),
                           ],
                         ),
-                        subtitle: Text(
-                          '${item['quantity']} ${item['unit']} • ${item['category']}',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: Colors.red,
-                          ),
-                          onPressed: () =>
-                              service.removeItem(item['name']),
-                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: shoppingItems.length,
+                        itemBuilder: (context, index) {
+                          final item = shoppingItems[index];
+
+                          final double requiredQty = _parseQty(item['quantity']);
+                          
+                          // Get appropriate unit for the item
+                          String unit = item['unit'] ?? '';
+                          // If unit is empty or default 'pcs', try to get better metric from service
+                          if ((unit.isEmpty || unit == 'pcs') && _metricsLoaded) {
+                            final suggestedMetric = _metricsService.getMetricsForIngredient(item['name']);
+                            debugPrint('ShoppingList: ${item['name']} -> item unit: "$unit", suggested metric: $suggestedMetric');
+                            if (suggestedMetric.isNotEmpty) {
+                              unit = suggestedMetric; // Keep the full metric string like "500 g"
+                            }
+                          } else if (unit.isEmpty && !_metricsLoaded) {
+                            unit = 'pcs'; // fallback while loading
+                          }
+                          
+                          debugPrint('ShoppingList: ${item['name']} -> final unit: $unit (loaded: $_metricsLoaded)');
+
+  final bool stillNeeded = needsToBuy(
+    item['name'],
+    requiredQty,
+  );
+
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withOpacity(0.1),
+                                  spreadRadius: 1,
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.grey.shade200,
+                                child: ItemImageResolver.getImageWidget(
+                                  item['name'],
+                                  size: 40,
+                                  imageUrl: item['imageUrl'], // Pass imageUrl parameter
+                                ),
+                              ),
+                              title: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      item['name'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  if (stillNeeded)
+                                    const Icon(
+                                      Icons.warning_amber_rounded,
+                                      color: Colors.orange,
+                                      size: 18,
+                                    ),
+                                ],
+                              ),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${item['category']}',
+                                    style: const TextStyle(fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Qty: ${item['quantity']} | Metric: $unit',
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Edit button
+                                  GestureDetector(
+                                    onTap: () => _editItem(
+                                      item['name'],
+                                      item['quantity'].toString(),
+                                      item['unit'],
+                                    ),
+                                    child: Container(
+                                      width: 32,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(0xFFE3F2FD),
+                                      ),
+                                      child: const Icon(
+                                        Icons.edit,
+                                        size: 16,
+                                        color: Color(0xFF2196F3),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  // Delete button
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      color: Colors.red,
+                                    ),
+                                    onPressed: () =>
+                                        shoppingService.removeItem(item['name']),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+              ),
+            ],
+          ),
 
           floatingActionButton: shoppingItems.isEmpty
               ? null
@@ -182,7 +367,5 @@ final bool stillNeeded = needsToBuy(
                   ),
                 ),
         );
-      },
-    );
   }
 }

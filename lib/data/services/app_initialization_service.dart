@@ -9,6 +9,7 @@ import '../../state/pantry_state.dart';
 import '../../state/home_provider.dart';
 import '../services/gemini_recipe_service.dart';
 import '../services/preference_api_service.dart';
+import 'smart_splash_recipe_cache_service.dart';
 
 class AppInitializationService {
   static bool _initialized = false;
@@ -32,8 +33,8 @@ class AppInitializationService {
       // Phase 2: Cache Optimization (2-5 seconds)
       await _optimizeCacheDuringSplash();
       
-      // Phase 3: Preload Common Data (5-8 seconds)
-      await _preloadCommonData();
+      // Phase 3: Smart Preloading with MongoDB-first caching
+      await _smartPreloadCommonData();
       
       // Phase 4: Background Tasks (8-10+ seconds)
       _startBackgroundTasks();
@@ -124,52 +125,41 @@ class AppInitializationService {
     }
   }
 
-  /// Phase 3: Preload commonly accessed data
-  static Future<void> _preloadCommonData() async {
+  /// Phase 3: Smart Preloading with MongoDB-first caching
+  static Future<void> _smartPreloadCommonData() async {
     final phaseStopwatch = Stopwatch()..start();
     
     try {
-      debugPrint('⚡ Phase 3: Preloading Common Data');
+      debugPrint('⚡ Phase 3: Smart Preloading Common Data');
       
-      int preloadedItems = 0;
-      
-      // 1. Preload popular recipe details (if any cached)
+      // Define what to preload during splash
       final popularRecipes = [
-        'Chicken Curry',
-        'Pasta',
-        'Salad',
-        'Soup',
-        'Rice',
-        'Bread',
-        'Eggs',
-        'Vegetables'
+        'Chicken Curry', 'Pasta', 'Salad', 'Soup', 'Rice', 'Bread', 'Eggs', 'Vegetables'
       ];
       
-      for (final recipeName in popularRecipes) {
-        try {
-          final cached = await RecipeCacheRepository.getCachedRecipeDetails(recipeName);
-          if (cached != null) {
-            preloadedItems++;
-            debugPrint('📖 Preloaded cached recipe: $recipeName');
-          }
-        } catch (e) {
-          // Ignore individual preload failures
-        }
-      }
+      final commonIngredients = [
+        'tomato', 'onion', 'garlic', 'chicken', 'rice', 'pasta', 'cheese', 'eggs', 'flour', 'oil', 'salt', 'pepper'
+      ];
       
-      // 2. Preload cache statistics for faster access
-      final finalStats = await CacheManagerService.getCacheStats();
-      _initStats['finalCacheStats'] = finalStats;
+      final cookingPreferences = ['italian', 'indian', 'chinese', 'mexican', 'thai'];
       
-      // 3. Warm up Gemini service connection
-      GeminiRecipeService.initialize();
+      // Use smart splash cache service for MongoDB-first preloading
+      final preloadResult = await SmartSplashRecipeCacheService.smartPreloadDuringSplash(
+        recipeNames: popularRecipes,
+        ingredientNames: commonIngredients,
+        cookingPreferences: cookingPreferences,
+      );
       
       phaseStopwatch.stop();
       _initStats['phase3Time'] = phaseStopwatch.elapsedMilliseconds;
-      _initStats['preloadedItems'] = preloadedItems;
+      _initStats['preloadedItems'] = preloadResult['preloadedRecipes'] + preloadResult['preloadedIngredients'];
+      _initStats['cachedImages'] = preloadResult['cachedImages'];
+      _initStats['smartPreloadSuccess'] = preloadResult['success'];
       
       debugPrint('✅ Phase 3 completed in ${phaseStopwatch.elapsedMilliseconds}ms');
-      debugPrint('📦 Preloaded $preloadedItems cached items');
+      debugPrint('📦 Smart preloaded recipes: ${preloadResult['preloadedRecipes']}');
+      debugPrint('🥘 Smart preloaded ingredients: ${preloadResult['preloadedIngredients']}');
+      debugPrint('🖼️ Smart cached images: ${preloadResult['cachedImages']}');
       
     } catch (e) {
       phaseStopwatch.stop();

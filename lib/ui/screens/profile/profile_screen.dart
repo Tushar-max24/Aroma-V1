@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../calendar/calendar_empty_screen.dart';
+import '../home/generate_recipe_screen.dart';
 import 'my_account_screen.dart';
 import 'my_family_screen.dart';
 import 'kitchen_hub_screen.dart';
@@ -304,16 +305,16 @@ class ProfileScreen extends StatelessWidget {
           ),
           IconButton(
             onPressed: () {
-              Navigator.pushReplacement(
+              Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => CalendarEmptyScreen(phoneNumber: phoneNumber),
+                  builder: (context) => const CalendarEmptyScreen(),
                 ),
               );
             },
             icon: const Icon(
               Icons.calendar_month_outlined,
-              color: Color(0xFFB0B0B0),
+              color: Color(0xFFFC6E3C),
             ),
           ),
           IconButton(

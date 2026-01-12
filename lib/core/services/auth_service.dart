@@ -16,7 +16,7 @@ class AuthService with ChangeNotifier {
   bool _isLoading = true;
   final Map<String, User> _tempUserStore = {};
 
-  bool get isAuthenticated => _token != null;
+  bool get isAuthenticated => _user != null && _user!.id.isNotEmpty;
   bool get isLoading => _isLoading;
   String? get token => _token;
   User? get user => _user;
@@ -56,8 +56,23 @@ class AuthService with ChangeNotifier {
   // SAVE AUTH
   // =========================
   Future<void> _saveAuth(User user) async {
+    debugPrint('=== SAVE AUTH DEBUG ===');
+    debugPrint('Saving user: ${user.name}');
+    debugPrint('User token: ${user.token}');
+    debugPrint('User mobile: ${user.mobile_no}');
+    debugPrint('User ID: ${user.id}');
+    
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, user.token ?? '');
+    
+    // Save token if available, otherwise save user ID as authentication proof
+    if (user.token != null && user.token!.isNotEmpty) {
+      await prefs.setString(_tokenKey, user.token!);
+      _token = user.token;
+    } else {
+      // Use user ID as authentication proof when no token is provided
+      await prefs.setString(_tokenKey, user.id);
+      _token = user.id;
+    }
     
     // Convert user to JSON and ensure password is included
     final userJson = user.toJson();
@@ -66,10 +81,14 @@ class AuthService with ChangeNotifier {
     }
     
     await prefs.setString(_userKey, jsonEncode(userJson));
-    _token = user.token;
     _user = user;
+    
+    debugPrint('Before notifyListeners - isAuthenticated: $isAuthenticated');
+    debugPrint('Notifying listeners...');
     notifyListeners();
+    debugPrint('After notifyListeners - isAuthenticated: $isAuthenticated');
     notifyListeners();
+    debugPrint('=== SAVE AUTH COMPLETE ===');
   }
 
   // =========================
@@ -173,16 +192,65 @@ class AuthService with ChangeNotifier {
   }
 
   // =========================
+  // LOGIN WITH OTP
+  // =========================
+  Future<ApiResponse<User>> loginWithOtp({
+    required String phone,
+    required String otp,
+  }) async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      
+      debugPrint('Attempting OTP login for phone: $phone');
+      
+      // Try OTP login with API
+      try {
+        final response = await ApiService.loginUserWithOtp(
+          phone: phone,
+          otp: otp,
+        );
+        
+        if (response.success && response.data != null) {
+          debugPrint('API OTP login successful');
+          await _saveAuth(response.data!);
+          return response;
+        }
+        
+        debugPrint('API OTP login failed: ${response.message}');
+        return ApiResponse<User>(
+          success: false,
+          message: response.message ?? 'OTP login failed',
+        );
+      } catch (e) {
+        debugPrint('API OTP login error: $e');
+        return ApiResponse<User>(
+          success: false,
+          message: 'OTP login failed. Please check your OTP and try again.',
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('OTP Login error: $e\n$stackTrace');
+      return ApiResponse<User>(
+        success: false,
+        message: 'An error occurred during OTP login',
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // =========================
   // REGISTER
   // =========================
   Future<ApiResponse<User>> register({
     required String phone,
     required String name,
-    required String email,
     required String password,
   }) async {
     try {
-      debugPrint('Starting registration for: $email');
+      debugPrint('Starting registration for: $name');
       _isLoading = true;
       notifyListeners();
       
@@ -191,7 +259,6 @@ class AuthService with ChangeNotifier {
       final response = await ApiService.registerUser(
         phone: phone,
         name: name,
-        email: email,
         password: password,
       );
 
@@ -207,8 +274,7 @@ class AuthService with ChangeNotifier {
       final mockUser = User(
         id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
         name: name,
-        email: email,
-        phone: phone,
+        mobile_no: phone,
         password: password,
         token: 'temp_token_${DateTime.now().millisecondsSinceEpoch}',
       );
@@ -216,8 +282,6 @@ class AuthService with ChangeNotifier {
       // Store in temporary storage
       _tempUserStore[phone] = mockUser;
       _tempUserStore[phone] = mockUser;
-
-
 
       
       debugPrint('Fallback registration successful');

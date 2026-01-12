@@ -4,7 +4,7 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import 'gemini_image_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'ingredient_image_cache_service.dart';
 import 'ingredient_image_db_service.dart';
 import '../models/ingredient_image_model.dart';
@@ -12,6 +12,7 @@ import '../models/ingredient_image_model.dart';
 class IngredientImageService {
   static bool _isInitialized = false;
   static const String _fallbackImagePath = 'assets/images/pantry/temp_pantry.png';
+  static String get _baseUrl => dotenv.env['MONGO_EXTERNAL_API_URL'] ?? "http://3.108.110.151:5001";
 
   /// Normalize ingredient name for consistent database storage and lookup
   static String _normalizeIngredientName(String ingredientName) {
@@ -20,24 +21,25 @@ class IngredientImageService {
 
   static Future<void> initialize() async {
     if (!_isInitialized) {
-      await GeminiImageService.initialize();
       await IngredientImageCacheService.initialize();
       await IngredientImageDBService.initialize();
       _isInitialized = true;
       
       if (kDebugMode) {
-        print('✅ Ingredient Image Service initialized with DB support');
+        print('✅ Ingredient Image Service initialized with DB support (Backend Images Only)');
       }
     }
   }
 
-  static Future<String?> getIngredientImage(String ingredientName) async {
+  static Future<String?> getIngredientImage(String ingredientName, {String? imageUrl}) async {
     await initialize();
     
     final normalizedName = _normalizeIngredientName(ingredientName);
     
     if (kDebugMode) {
-      print('🔍 Getting ingredient image for: $ingredientName -> normalized: $normalizedName');
+      print('🔍 Getting ingredient image for: "$ingredientName" -> normalized: "$normalizedName"');
+      print('🔍 Original ingredient name length: ${ingredientName.length}');
+      print('🔍 Normalized ingredient name length: ${normalizedName.length}');
     }
     
     try {
@@ -87,34 +89,65 @@ class IngredientImageService {
         }
       }
 
-      // 3. Generate new image using Gemini API
+      // 3. Use provided imageURL if available, otherwise use backend image URL
+      String? workingUrl;
+      
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        if (kDebugMode) {
+          print('🔄 Using provided imageURL for: $ingredientName (normalized: $normalizedName)');
+          print('🌐 Provided imageURL: $imageUrl');
+        }
+        
+        workingUrl = imageUrl;
+      } else {
+        // Try multiple backend URL formats
+        final possibleUrls = [
+          '$_baseUrl/v2/images/${normalizedName.replaceAll(' ', '_')}.png',
+          '$_baseUrl/v2/images/${normalizedName.replaceAll(' ', '')}.png',
+          '$_baseUrl/v2/images/${normalizedName}.png',
+          '$_baseUrl/ingredient_images/${normalizedName.replaceAll(' ', '_')}.png',
+          '$_baseUrl/ingredient_images/${normalizedName}.png',
+        ];
+        
+        for (final url in possibleUrls) {
+          if (kDebugMode) {
+            print('🌐 Trying backend URL: "$url" (length: ${url.length})');
+          }
+          
+          // Use the first URL and let image widget handle 404s
+          workingUrl = url;
+          break;
+        }
+      }
+      
+      if (workingUrl == null) {
+        if (kDebugMode) {
+          print('❌ No backend URL available for: $ingredientName, using fallback');
+        }
+        return _fallbackImagePath;
+      }
+      
       if (kDebugMode) {
-        print('🔄 Generating new image for: $ingredientName (normalized: $normalizedName)');
+        print('🌐 Final backend URL: "$workingUrl" (length: ${workingUrl?.length})');
       }
-
-      final imageData = await GeminiImageService.generateIngredientImage(normalizedName);
-      if (imageData == null) {
+      
+      if (workingUrl == null) {
         if (kDebugMode) {
-          print('❌ Failed to generate image for: $ingredientName, using fallback');
+          print('❌ No backend URL available for: $ingredientName, using fallback');
         }
         return _fallbackImagePath;
       }
-
-      // 4. Save image to local storage
-      final localPath = await _saveImageLocally(normalizedName, imageData);
-      if (localPath == null) {
-        if (kDebugMode) {
-          print('❌ Failed to save image locally for: $ingredientName, using fallback');
-        }
-        return _fallbackImagePath;
+      
+      if (kDebugMode) {
+        print('🌐 Using backend URL: $workingUrl');
       }
 
-      // 5. Cache the image in both database and SharedPreferences
+      // 4. Cache the backend image URL
       final imageModel = IngredientImageModel(
         id: '${normalizedName}_${DateTime.now().millisecondsSinceEpoch}',
         ingredientName: normalizedName,
-        localPath: localPath,
-        imageUrl: localPath, // Using local path as image URL for now
+        localPath: workingUrl, // Use backend URL as path
+        imageUrl: workingUrl,
         createdAt: DateTime.now(),
         lastAccessed: DateTime.now(),
       );
@@ -122,16 +155,16 @@ class IngredientImageService {
       await IngredientImageDBService.cacheImage(imageModel);
       await IngredientImageCacheService.cacheImage(
         normalizedName,
-        localPath,
-        localPath,
+        workingUrl,
+        workingUrl,
       );
 
       if (kDebugMode) {
-        print('✅ Successfully generated and cached image for: $ingredientName (normalized: $normalizedName)');
-        print('📁 Saved to: $localPath');
+        print('✅ Successfully cached backend image for: $ingredientName (normalized: $normalizedName)');
+        print('🌐 Backend URL: $workingUrl');
       }
 
-      return localPath;
+      return workingUrl;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error getting ingredient image: $e, using fallback');

@@ -96,6 +96,61 @@ Return ONLY a valid JSON object. No markdown.
     }
   }
 
+  static Future<bool> validateRecipeAgainstPreferences(
+    String recipeName,
+    Map<String, dynamic> preferences,
+  ) async {
+    final url = Uri.parse(
+      "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent?key=${dotenv.env['GEMINI_API_KEY'] ?? ''}",
+    );
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": """
+Analyze if the recipe "$recipeName" STRICTLY matches these dietary preferences:
+
+Dietary Restriction: ${preferences['diet'] ?? 'None'}
+Meal Type: ${preferences['meal_type'] ?? 'Any'}
+Cuisine: ${preferences['cuisine'] ?? 'Any'}
+
+Rules for validation:
+- Vegetarian: No meat, poultry, fish, seafood, eggs, or ingredients derived from animals
+- Vegan: No animal products including meat, poultry, fish, seafood, eggs, dairy, honey, or animal-derived ingredients  
+- Non-Vegetarian: Can include meat, poultry, fish, seafood, eggs
+- Eggetarian: Can include eggs but no meat, poultry, fish, or seafood
+
+Return ONLY "true" if the recipe STRICTLY follows the dietary restriction, otherwise return "false".
+No explanation, just true or false.
+"""
+                }
+              ]
+            }
+          ]
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception("Gemini API failed: ${response.body}");
+      }
+
+      final decoded = jsonDecode(response.body);
+      String text = decoded["candidates"][0]["content"]["parts"][0]["text"].toLowerCase().trim();
+      
+      return text == "true";
+    } catch (e) {
+      print("Error validating recipe preferences: $e");
+      // If validation fails, err on side of caution and return false
+      return false;
+    }
+  }
+
   static Future<List<Map<String, dynamic>>> fetchReviews(
     String recipeName, {
     int count = 3,

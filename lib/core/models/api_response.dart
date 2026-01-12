@@ -16,9 +16,9 @@ class ApiResponse<T> {
     T Function(Object? json) fromJsonT,
   ) {
     return ApiResponse<T>(
-      success: json['success'] as bool? ?? false,
+      success: json['status'] as bool? ?? json['success'] as bool? ?? false,
       message: json['message'] as String? ?? '',
-      data: json['data'] != null ? fromJsonT(json['data']) : null,
+      data: json['user'] != null ? fromJsonT(json['user']) : json['data'] != null ? fromJsonT(json['data']) : null,
       token: json['token'] as String?,
     );
   }
@@ -28,29 +28,25 @@ class ApiResponse<T> {
 class User {
   final String id;
   final String name;
-  final String email;
-  final String phone;
+  final String mobile_no;
   final String? token;
-  final String? password;  // Add this line
+  final String? password;
 
   User({
     required this.id,
     required this.name,
-    required this.email,
-    required this.phone,
+    required this.mobile_no,
     this.token,
-    this.password,  // Add this to the constructor
+    this.password,
   });
 
-  // Add fromJson and toJson methods if they don't exist
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'] ?? '',
       name: json['name'] ?? '',
-      email: json['email'] ?? '',
-      phone: json['phone'] ?? '',
+      mobile_no: json['mobile_no'] ?? json['phone'] ?? '',
       token: json['token'],
-      password: json['password'],  // Add this line
+      password: json['password'],
     );
   }
 
@@ -58,10 +54,12 @@ class User {
     return {
       'id': id,
       'name': name,
-      'email': email,
-      'phone': phone,
+      'mobile_no': mobile_no,
+      'phone': mobile_no,
       'token': token,
-      'password': password,  // Add this line
+      'password': password,
     };
   }
+
+  String get phone => mobile_no;
 }

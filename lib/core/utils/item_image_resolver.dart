@@ -36,11 +36,12 @@ class ItemImageResolver {
         .replaceAll(RegExp(r"\s+"), "_");
   }
 
-  /// Get image widget for ingredient - uses Gemini generation first, then falls back to assets
-  static Widget getImageWidget(String itemName, {double size = 56}) {
+  /// Get image widget for ingredient - uses imageUrl if provided, otherwise uses backend generation
+  static Widget getImageWidget(String itemName, {double size = 56, String? imageUrl}) {
     return IngredientImageThumbnail(
       ingredientName: itemName,
       size: size,
+      imageUrl: imageUrl, // Pass the imageUrl to the thumbnail widget
     );
   }
 

@@ -1,10 +1,8 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-
-// Core & Config
-import 'package:flavoryx/core/config/app_config.dart';
 
 // State & Services
 import 'package:flavoryx/state/pantry_state.dart';
@@ -12,8 +10,11 @@ import 'package:flavoryx/state/home_provider.dart';
 import 'package:flavoryx/data/services/gemini_recipe_service.dart';
 import 'package:flavoryx/data/services/shopping_list_service.dart';
 import 'package:flavoryx/data/services/cache_manager_service.dart';
+import 'package:flavoryx/data/services/ingredient_image_service.dart';
 import 'package:flavoryx/core/services/auth_service.dart';
 import 'package:flavoryx/data/services/app_state_service.dart';
+import 'package:flavoryx/data/services/app_state_persistence_service.dart';
+import 'package:flavoryx/data/services/session_cache_service.dart';
 
 // UI Screens
 import 'package:flavoryx/ui/screens/auth/auth_wrapper.dart';
@@ -23,14 +24,16 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    // Load environment variables
-    await dotenv.load(fileName: ".env");
+    // Load environment variables with UTF-8 encoding fallback
+    try {
+      await dotenv.load(fileName: ".env");
+    } catch (e) {
+      debugPrint('Failed to load .env file, using default values: $e');
+      // Continue without .env file - services will use default values
+    }
 
-    // Initialize app configuration
-    await AppConfig().init();
-
-    // Initialize Gemini service
-    GeminiRecipeService.initialize();
+    // Initialize Ingredient Image service
+    await IngredientImageService.initialize();
 
     // Initialize AuthService
     final authService = AuthService();
@@ -103,14 +106,25 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
+    // Handle app lifecycle with state persistence
+    AppStatePersistenceService.handleAppLifecycleChange(state);
+    
     switch (state) {
       case AppLifecycleState.paused:
         // App going to background - save current state
         _saveCurrentAppState();
         break;
       case AppLifecycleState.detached:
-        // App being closed - mark session inactive
+        // App being closed - mark session inactive, save final state, and clear session cache
         AppStateService.markSessionInactive();
+        AppStatePersistenceService.saveState();
+        
+        // Clear session cache when app is closed
+        SessionCacheService.clearSessionCache();
+        
+        if (kDebugMode) {
+          print('🔌 [App Lifecycle] App detached - session cache cleared');
+        }
         break;
       case AppLifecycleState.resumed:
         // App coming to foreground - session becomes active
@@ -127,7 +141,10 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   Future<void> _saveCurrentAppState() async {
     try {
-      // Get current route information
+      // Save current state using persistence service
+      await AppStatePersistenceService.saveState();
+      
+      // Get current route information for additional context
       final navKey = navigatorKey;
       if (navKey.currentContext != null) {
         final route = ModalRoute.of(navKey.currentContext!);
@@ -152,6 +169,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     try {
       // This will be handled by individual screens when they load
       print(' App resumed - session active');
+      
+      // Update persistence service for resumed state
+      await AppStatePersistenceService.saveState();
     } catch (e) {
       debugPrint('Error marking session active: $e');
     }

@@ -4,6 +4,10 @@ import 'package:path/path.dart' as path;
 import 'package:flutter/foundation.dart';
 import '../models/ingredient_image_model.dart';
 
+// Import for web support
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
+
 class IngredientImageDBService {
   static Database? _database;
   static const String _tableName = 'ingredient_images';
@@ -12,7 +16,21 @@ class IngredientImageDBService {
   static Future<void> initialize() async {
     if (_database != null) return;
     
+    // Skip database initialization on web platform
+    if (kIsWeb) {
+      if (kDebugMode) {
+        print('⚠️ Database initialization skipped on web platform');
+      }
+      return;
+    }
+    
     try {
+      // Initialize database factory for mobile platforms only
+      if (!kIsWeb) {
+        sqfliteFfiInit();
+        databaseFactory = databaseFactoryFfi;
+      }
+      
       final databasesPath = await getDatabasesPath();
       final dbPath = path.join(databasesPath, 'ingredient_images.db');
       
@@ -28,9 +46,9 @@ class IngredientImageDBService {
       }
     } catch (e) {
       if (kDebugMode) {
-        print('❌ Failed to initialize database: $e');
+        print('⚠️ Database initialization failed, continuing without database: $e');
       }
-      rethrow;
+      // Don't rethrow - allow app to continue without database
     }
   }
 
@@ -63,6 +81,11 @@ class IngredientImageDBService {
 
   static Future<IngredientImageModel?> getCachedImage(String ingredientName) async {
     await initialize();
+    
+    // Skip database operations on web or if database failed to initialize
+    if (kIsWeb || _database == null) {
+      return null;
+    }
     
     if (kDebugMode) {
       print('🔍 Checking DB for cached image: $ingredientName');
@@ -109,6 +132,11 @@ class IngredientImageDBService {
   static Future<void> cacheImage(IngredientImageModel model) async {
     await initialize();
     
+    // Skip database operations on web or if database failed to initialize
+    if (kIsWeb || _database == null) {
+      return;
+    }
+    
     try {
       final data = {
         'id': model.id,
@@ -138,6 +166,11 @@ class IngredientImageDBService {
   static Future<void> updateLastAccessed(String ingredientName) async {
     await initialize();
     
+    // Skip database operations on web or if database failed to initialize
+    if (kIsWeb || _database == null) {
+      return;
+    }
+    
     try {
       await _database!.update(
         _tableName,
@@ -154,6 +187,11 @@ class IngredientImageDBService {
 
   static Future<void> removeCachedImage(String ingredientName) async {
     await initialize();
+    
+    // Skip database operations on web
+    if (kIsWeb) {
+      return;
+    }
     
     try {
       await _database!.delete(
@@ -174,6 +212,11 @@ class IngredientImageDBService {
 
   static Future<List<IngredientImageModel>> getAllCachedImages() async {
     await initialize();
+    
+    // Skip database operations on web
+    if (kIsWeb) {
+      return [];
+    }
     
     try {
       final maps = await _database!.query(
@@ -200,6 +243,11 @@ class IngredientImageDBService {
   static Future<void> clearOldCache({Duration maxAge = const Duration(days: 30)}) async {
     await initialize();
     
+    // Skip database operations on web
+    if (kIsWeb) {
+      return;
+    }
+    
     try {
       final cutoffTime = DateTime.now().subtract(maxAge).millisecondsSinceEpoch;
       
@@ -221,6 +269,11 @@ class IngredientImageDBService {
 
   static Future<int> getCacheSize() async {
     await initialize();
+    
+    // Skip database operations on web
+    if (kIsWeb) {
+      return 0;
+    }
     
     try {
       final result = await _database!.rawQuery('SELECT COUNT(*) as count FROM $_tableName');

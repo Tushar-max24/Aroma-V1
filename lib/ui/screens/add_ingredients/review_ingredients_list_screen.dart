@@ -4,6 +4,8 @@ import '../../widgets/ingredient_row.dart';
 import '../preferences/cooking_preference_screen.dart';
 import '../../../data/models/ingredient_model.dart';
 import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/services/ingredient_metrics_service.dart';
+import '../../../data/services/mongo_ingredient_service.dart';
 import '../../../core/utils/item_image_resolver.dart';
 
 class ReviewIngredientsListScreen extends StatefulWidget {
@@ -23,24 +25,40 @@ class _ReviewIngredientsListScreenState
     extends State<ReviewIngredientsListScreen> {
   List<IngredientModel> _ingredients = [];
 
-  /// 👉 Store price & quantity separately (clean approach)
+  /// 👉 Store price, quantity & metrics separately (clean approach)
   final Map<String, double> _priceMap = {};
   final Map<String, int> _quantityMap = {};
-
+  final Map<String, String> _imageMap = {}; // Store image URLs
   bool _isLoading = true;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    final screenStartTime = DateTime.now();
+    debugPrint("🎯 [ReviewIngredientsListScreen] Screen init started at: ${screenStartTime.millisecondsSinceEpoch}");
+
+    // Skip metrics loading for development speed (same as pantry review)
+    _fetchIngredients();
+
+    final screenEndTime = DateTime.now();
+    debugPrint("🎯 [ReviewIngredientsListScreen] Screen init completed at: ${screenEndTime.millisecondsSinceEpoch}");
+    debugPrint("⏱️ [ReviewIngredientsListScreen] Init time: ${screenEndTime.difference(screenStartTime).inMilliseconds}ms");
+  }
+
+  Future<void> _loadMetricsAndFetchIngredients() async {
     _fetchIngredients();
   }
 
   // ---------------- Fetch Ingredients from Scan ----------------
   Future<void> _fetchIngredients() async {
+    final fetchStartTime = DateTime.now();
+    debugPrint("🎯 [ReviewIngredientsListScreen] Starting ingredient fetch at: ${fetchStartTime.millisecondsSinceEpoch}");
+
     try {
       final result = widget.scanResult;
       final ing = result["ingredients_with_quantity"] ?? [];
+      debugPrint("🎯 [ReviewIngredientsListScreen] Processing ${ing.length} ingredients");
 
       _ingredients = ing.map<IngredientModel>((item) {
         final id = DateTime.now().microsecondsSinceEpoch.toString();
@@ -49,17 +67,27 @@ class _ReviewIngredientsListScreenState
             double.tryParse(item["price"]?.toString() ?? "0") ?? 0.0;
         _quantityMap[id] =
             int.tryParse(item["quantity"]?.toString() ?? "1") ?? 1;
+        _imageMap[id] = item["imageURL"]?.toString() ?? item["image_url"]?.toString() ?? ""; // Store image URL
+        debugPrint("🎯 [ReviewIngredientsListScreen] Image mapping for ${item["item"]}: ${_imageMap[id]}");
+
+        // Use match percentage from backend if available, default to 100
+        final matchPercent = int.tryParse(item["match"]?.toString() ?? item["match%"]?.toString() ?? "100") ?? 100;
 
         return IngredientModel(
           id: id,
           emoji: ItemImageResolver.getEmojiForIngredient(item["item"]?.toString() ?? ""),
           name: item["item"]?.toString() ?? "",
-          match: 100,
+          match: matchPercent,
         );
       }).toList();
 
+      final fetchEndTime = DateTime.now();
+      debugPrint("🎯 [ReviewIngredientsListScreen] Ingredient fetch completed at: ${fetchEndTime.millisecondsSinceEpoch}");
+      debugPrint("⏱️ [ReviewIngredientsListScreen] Fetch time: ${fetchEndTime.difference(fetchStartTime).inMilliseconds}ms");
+
       setState(() => _isLoading = false);
     } catch (e) {
+      debugPrint("❌ [ReviewIngredientsListScreen] Fetch failed: $e");
       setState(() {
         _error = "Failed: $e";
         _isLoading = false;
@@ -68,11 +96,11 @@ class _ReviewIngredientsListScreenState
   }
 
   // =====================================================
-  // ADD INGREDIENT (NAME + PRICE + QUANTITY)
+  // ADD INGREDIENT (NAME + METRIC + QUANTITY)
   // =====================================================
   Future<void> _showAddIngredientDialog() async {
     final nameController = TextEditingController();
-    final priceController = TextEditingController();
+    final metricController = TextEditingController();
     final quantityController = TextEditingController(text: "1");
 
     await showDialog(
@@ -88,9 +116,9 @@ class _ReviewIngredientsListScreenState
                   const InputDecoration(labelText: "Ingredient name"),
             ),
             TextField(
-              controller: priceController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: "Price"),
+              controller: metricController,
+              keyboardType: TextInputType.text,
+              decoration: const InputDecoration(labelText: "Metric"),
             ),
             TextField(
               controller: quantityController,
@@ -120,8 +148,7 @@ class _ReviewIngredientsListScreenState
                       match: 100,
                     ),
                   );
-                  _priceMap[id] =
-                      double.tryParse(priceController.text) ?? 0.0;
+                  _priceMap[id] = 0.0; // Price not used in home screen
                   _quantityMap[id] =
                       int.tryParse(quantityController.text) ?? 1;
                 });
@@ -135,12 +162,61 @@ class _ReviewIngredientsListScreenState
     );
   }
 
+  // ---------------- Edit Ingredient ----------------
+  Future<void> _showEditIngredientDialog(int index) async {
+    final item = _ingredients[index];
+    final currentQuantity = _quantityMap[item.id] ?? 1;
+    
+    final quantityController = TextEditingController(text: currentQuantity.toString());
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Edit ${item.name}"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: quantityController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: "Quantity",
+                hintText: "Enter quantity"
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              final newQuantity = int.tryParse(quantityController.text) ?? currentQuantity;
+              final itemId = item.id;
+              
+              if (itemId?.isNotEmpty == true) {
+                setState(() {
+                  _quantityMap[itemId!] = newQuantity;
+                });
+              }
+              
+              Navigator.pop(context);
+            },
+            child: const Text("Update"),
+          ),
+        ],
+      ),
+    );
+  }
   // ---------------- Remove Ingredient ----------------
   void _removeIngredient(int index) {
     final id = _ingredients[index].id;
     setState(() {
       _priceMap.remove(id);
       _quantityMap.remove(id);
+      _imageMap.remove(id); // Remove image URL
       _ingredients.removeAt(index);
     });
   }
@@ -206,7 +282,8 @@ class _ReviewIngredientsListScreenState
               ],
             ),
             child: GestureDetector(
-              onTap: () {
+              onTap: () async {
+                // Continue with normal flow - no MongoDB storage for speed
                 final ingredientsPayload = _ingredients.map((e) {
                   return {
                     "item": e.name,
@@ -260,42 +337,22 @@ class _ReviewIngredientsListScreenState
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       itemCount: _ingredients.length,
       itemBuilder: (context, index) {
         final item = _ingredients[index];
         final price = _priceMap[item.id] ?? 0.0;
         final qty = _quantityMap[item.id] ?? 1;
-
-        return Column(
-          children: [
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  IngredientRow(
-                    emoji: item.emoji,
-                    name: item.name,
-                    matchPercent: item.match,
-                    onRemove: () => _removeIngredient(index),
-                    useImageService: true,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    "Price: ₹$price   |   Quantity: $qty",
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: Colors.black.withOpacity(0.6),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Divider(color: Colors.black.withOpacity(0.06)),
-          ],
+        
+        return IngredientRow(
+          emoji: item.emoji,
+          name: item.name,
+          matchPercent: item.match,
+          quantity: qty,
+          onRemove: () => _removeIngredient(index),
+          onEdit: () => _showEditIngredientDialog(index),
+          useImageService: true,
+          imageUrl: _imageMap[item.id], // Pass image URL
         );
       },
     );

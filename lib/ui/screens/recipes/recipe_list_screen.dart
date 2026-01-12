@@ -1,16 +1,11 @@
-// lib/ui/screens/recipes/recipe_list_screen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../recipe_detail/recipe_detail_screen.dart';
 import '../../../widgets/cached_image.dart';
 import '../../../data/repositories/recipe_cache_repository.dart';
-
-
-// =====================================================================
-// 🔥 IN-MEMORY IMAGE CACHE
-// =====================================================================
-final Map<String, String> _imageCache = {};
+import '../../../data/services/smart_recipe_list_preloader_service.dart';
 
 class RecipeListScreen extends StatefulWidget {
   final List<Map<String, dynamic>> ingredients;
@@ -30,6 +25,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   final List<_RecipeData> _allRecipes = [];
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isPreloading = false;
 
   int _visibleCount = 3;
   final Set<int> _likedIndices = {};
@@ -40,38 +36,111 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     _fetchRecipes();
   }
 
-  bool _isValidImageUrl(String url) {
-    return url.startsWith("http://") || url.startsWith("https://");
-  }
-
-  Future<String?> _fetchDishImage(String dishName) async {
-    if (_imageCache.containsKey(dishName)) {
-      return _imageCache[dishName];
-    }
-
-    try {
-      final url =
-          Uri.parse("http://3.108.110.151:5001/generate-dish-image");
-
-      final res = await http.post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"dish_name": dishName}),
-      );
-
-      if (res.statusCode == 200) {
-        final decoded = jsonDecode(res.body);
-        final imgUrl = decoded["image_url"];
-
-        if (imgUrl is String && _isValidImageUrl(imgUrl)) {
-          _imageCache[dishName] = imgUrl;
-          return imgUrl;
-        }
+  // Generate recipe images in background using /generate-image API
+  Future<void> _generateRecipeImagesInBackground(List<_RecipeData> recipes) async {
+    const String imageApiUrl = 'http://3.108.110.151:5001/generate-image';
+    
+    for (int i = 0; i < recipes.length; i++) {
+      final recipe = recipes[i];
+      
+      // Skip if recipe already has a valid image (not fallback)
+      if (recipe.image.isNotEmpty && 
+          !recipe.image.contains('pexels.com') && 
+          !recipe.image.contains('1640777')) {
+        debugPrint("⏭️ [Recipe List] Skipping ${recipe.title} - already has image: ${recipe.image.substring(0, 50)}...");
+        continue;
       }
-    } catch (e) {
-      debugPrint("❌ Image API error: $e");
+      
+      try {
+        debugPrint("🖼️ [Recipe List] Starting image generation for: ${recipe.title}");
+        
+        final response = await http.post(
+          Uri.parse(imageApiUrl),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'dish_name': recipe.title, // Use the exact format you specified
+          }),
+        ).timeout(const Duration(seconds: 30)); // Add timeout
+        
+        debugPrint("📡 [Recipe List] Image API response status: ${response.statusCode}");
+        
+        if (response.statusCode == 200) {
+          final Map<String, dynamic> imageData = jsonDecode(response.body);
+          debugPrint("📦 [Recipe List] Image API response: ${imageData.keys.toList()}");
+          debugPrint("📄 [Recipe List] Full response body: ${response.body}");
+          
+          String? imageUrl;
+          
+          // Handle different response formats
+          if (imageData.containsKey('image_url')) {
+            imageUrl = imageData['image_url'].toString();
+          } else if (imageData.containsKey('results') && imageData['results'] is Map) {
+            final results = imageData['results'] as Map<String, dynamic>;
+            
+            // Check if results has the recipe name as a key (new format)
+            if (results.containsKey(recipe.title)) {
+              final recipeData = results[recipe.title] as Map<String, dynamic>;
+              if (recipeData.containsKey('image_url')) {
+                imageUrl = recipeData['image_url'].toString();
+              } else if (recipeData.containsKey('url')) {
+                imageUrl = recipeData['url'].toString();
+              } else if (recipeData.containsKey('image')) {
+                imageUrl = recipeData['image'].toString();
+              }
+            }
+            // Check direct fields in results (old format)
+            else if (results.containsKey('image_url')) {
+              imageUrl = results['image_url'].toString();
+            } else if (results.containsKey('url')) {
+              imageUrl = results['url'].toString();
+            } else if (results.containsKey('image')) {
+              imageUrl = results['image'].toString();
+            }
+          } else if (imageData.containsKey('url')) {
+            imageUrl = imageData['url'].toString();
+          } else if (imageData.containsKey('image')) {
+            imageUrl = imageData['image'].toString();
+          }
+          
+          if (imageUrl != null && imageUrl.isNotEmpty) {
+            debugPrint("🔗 [Recipe List] Raw image URL: $imageUrl");
+            
+            // Ensure HTTPS for S3 URLs
+            if (imageUrl.startsWith('http://') && imageUrl.contains('s3')) {
+              imageUrl = imageUrl.replaceFirst('http://', 'https://');
+              debugPrint("🔒 [Recipe List] Converted S3 URL to HTTPS: $imageUrl");
+            }
+            
+            // Update recipe with generated image
+            recipes[i].image = imageUrl;
+            debugPrint("✅ [Recipe List] Image generated for: ${recipe.title}");
+            
+            // Trigger UI update to show the new image
+            if (mounted) {
+              setState(() {});
+            }
+            
+            // Add delay between requests to avoid rate limiting
+            await Future.delayed(const Duration(milliseconds: 500));
+          } else {
+            debugPrint("❌ [Recipe List] No image URL found in response for: ${recipe.title}");
+            debugPrint("📄 [Recipe List] Available keys: ${imageData.keys.toList()}");
+          }
+        } else {
+          debugPrint("❌ [Recipe List] Image generation failed for: ${recipe.title} - ${response.statusCode}");
+          debugPrint("📄 [Recipe List] Error response: ${response.body}");
+        }
+      } catch (e) {
+        debugPrint("❌ [Recipe List] Image generation exception for: ${recipe.title} - $e");
+        
+        // Continue with next recipe even if current one fails
+        continue;
+      }
     }
-    return null;
+    
+    debugPrint("🏁 [Recipe List] Image generation completed for ${recipes.length} recipes");
   }
 
   Future<void> _fetchRecipes() async {
@@ -82,91 +151,105 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     });
 
     try {
-      // Step 1: Check cache first
-      final cachedData = await RecipeCacheRepository.getCachedGeneratedRecipes(
+      // Fetch recipes directly from backend (no cache)
+      final response = await RecipeCacheRepository.getGeneratedRecipes(
         widget.preferences,
         widget.ingredients,
       );
       
-      List<Map<String, dynamic>> recipeList = [];
-      
-      if (cachedData != null) {
-        // Step 2a: Cache hit - use cached data instantly
-        recipeList = cachedData.recipes;
-        print('✅ Generated recipes loaded from cache (${recipeList.length} recipes)');
+      if (response != null) {
+        final recipeList = response.recipes;
+        print('📋 Backend returned ${recipeList.length} recipes');
         
-        // Load cached images
-        for (final recipe in recipeList) {
-          final recipeTitle = recipe["Dish"] ?? "Unknown Dish";
-          final cachedImage = cachedData.recipeImages[recipeTitle];
+        // Create UI elements from backend data
+        for (var item in recipeList) {
+          final recipeTitle = item["recipe_name"] ?? item["Dish"] ?? "Unknown Dish";
           
-          if (cachedImage != null) {
-            final recipeData = _RecipeData(
-              image: cachedImage,
-              title: recipeTitle,
-              cuisine: widget.preferences['cuisine'] ?? "",
-              time: "${widget.preferences['time'] ?? 30} min",
-            );
-            _allRecipes.add(recipeData);
+          // Extract image URL from backend response
+          String? recipeImageUrl;
+          if (item["recipe_image_url"] != null) {
+            recipeImageUrl = item["recipe_image_url"];
+          } else if (item["image"] != null) {
+            if (item["image"] is String) {
+              recipeImageUrl = item["image"];
+            } else if (item["image"] is Map) {
+              recipeImageUrl = item["image"]["image_url"]?.toString() ?? 
+                             item["image"]["url"]?.toString();
+            }
+          } else if (item["Image"] != null && item["Image"] is Map) {
+            recipeImageUrl = item["Image"]["image_url"]?.toString() ?? 
+                           item["Image"]["url"]?.toString();
           }
-        }
-      } else {
-        // Step 2b: Cache miss - fetch from backend and cache
-        print('🔄 No cache found, fetching from backend');
-        
-        // This method will: fetch from backend → cache result → return data
-        final freshCache = await RecipeCacheRepository.getGeneratedRecipes(
-          widget.preferences,
-          widget.ingredients,
-        );
-        
-        recipeList = freshCache.recipes;
-        print('📋 Backend returned ${recipeList.length} recipes and cached them');
-      }
-
-      // Step 3: Create UI elements from the data (cached or fresh)
-      for (var item in recipeList) {
-        final recipeTitle = item["Dish"] ?? "Unknown Dish";
-        
-        // Check if we already have this recipe in UI
-        if (!_allRecipes.any((r) => r.title == recipeTitle)) {
+          
+          debugPrint("🖼️ Found image in recipe data for $recipeTitle: $recipeImageUrl");
+          
           final recipe = _RecipeData(
-            image: "",
+            image: recipeImageUrl ?? "",
             title: recipeTitle,
             cuisine: widget.preferences['cuisine'] ?? "",
             time: "${widget.preferences['time'] ?? 30} min",
+            fullRecipeData: item, // Store complete backend recipe data
           );
 
           _allRecipes.add(recipe);
-
-          // Try to get cached image first, then fetch if needed
-          final cachedImage = cachedData?.recipeImages[recipeTitle] ?? 
-                             await RecipeCacheRepository.getCachedRecipeImage(recipeTitle);
-          
-          if (cachedImage != null) {
-            recipe.image = cachedImage;
-            print('✅ Recipe image loaded from cache: $recipeTitle');
-          } else {
-            _fetchDishImage(recipe.title).then((img) {
-              if (img != null && mounted) {
-                recipe.image = img;
-                // Cache the image
-                RecipeCacheRepository.cacheRecipeImage(recipeTitle, img);
-                setState(() {});
-              }
-            });
-          }
         }
-      }
 
-      setState(() {
-        _visibleCount = _allRecipes.length >= 3 ? 3 : _allRecipes.length;
-        _isLoading = false;
-      });
+        // Start background image generation for recipes without images
+        _generateRecipeImagesInBackground(_allRecipes);
+
+        // Start smart preloading in background after UI is ready
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _startSmartPreloading();
+        });
+
+        setState(() {
+          _visibleCount = _allRecipes.length >= 3 ? 3 : _allRecipes.length;
+          _isLoading = false;
+        });
+      }
     } catch (_) {
       setState(() {
         _hasError = true;
         _isLoading = false;
+      });
+    }
+  }
+
+  /// Start smart preloading of all recipe data
+  Future<void> _startSmartPreloading() async {
+    if (_allRecipes.isEmpty) return;
+    
+    setState(() {
+      _isPreloading = true;
+    });
+
+    try {
+      if (kDebugMode) {
+        print('🚀 [Recipe List Screen] Starting smart preloading for ${_allRecipes.length} recipes');
+      }
+
+      // Use smart recipe list preloader service
+      final preloadResult = await SmartRecipeListPreloaderService.preloadRecipeDataBeforeNavigation(
+        recipes: _allRecipes.map((r) => r.fullRecipeData).toList(),
+        preferences: widget.preferences,
+        availableIngredients: widget.ingredients,
+      );
+
+      if (kDebugMode) {
+        print('✅ [Recipe List Screen] Smart preloading completed');
+        print('📊 [Recipe List Screen] Preloaded recipes: ${preloadResult['preloadedRecipes']}');
+        print('🥘 [Recipe List Screen] Preloaded ingredients: ${preloadResult['preloadedIngredients']}');
+        print('🖼️ [Recipe List Screen] Cached images: ${preloadResult['cachedImages']}');
+        print('⏱️ [Recipe List Screen] Preloading time: ${preloadResult['totalTime']}ms');
+      }
+
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ [Recipe List Screen] Smart preloading failed: $e');
+      }
+    } finally {
+      setState(() {
+        _isPreloading = false;
       });
     }
   }
@@ -215,6 +298,44 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             ),
             const SizedBox(height: 28),
 
+            // Smart preloading indicator
+            if (_isPreloading)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Smart preloading recipes...',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (_isPreloading)
+              const SizedBox(height: 16)
+            else
+              const SizedBox(height: 28),
+
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
             else if (_hasError)
@@ -229,8 +350,8 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                       data: _allRecipes[i],
                       isLiked: _likedIndices.contains(i),
                       onToggleLike: () => _toggleLike(i),
-                      ingredients: widget.ingredients, // ✅ PASS FROM PARENT
-                      preferences: widget.preferences,  // Add this line
+                      ingredients: widget.ingredients,
+                      preferences: widget.preferences,
                     ),
                     const SizedBox(height: 30),
                   ],
@@ -306,7 +427,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                           child: Text(
                             "Not what you're looking for?\nHelp us improve →",
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize:16,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -331,12 +452,14 @@ class _RecipeData {
   final String title;
   final String cuisine;
   final String time;
+  final Map<String, dynamic> fullRecipeData; // Store complete backend data
 
   _RecipeData({
     required this.image,
     required this.title,
     required this.cuisine,
     required this.time,
+    required this.fullRecipeData,
   });
 }
 
@@ -421,6 +544,17 @@ class _RecipeCard extends StatelessWidget {
                       Expanded(
   child: GestureDetector(
     onTap: () {
+      // Check if recipe is preloaded for instant navigation
+      final preloadedRecipe = SmartRecipeListPreloaderService.getPreloadedRecipe(data.title);
+      
+      if (kDebugMode) {
+        print('🔄 [Recipe List Screen] Navigating to recipe: ${data.title}');
+        print('🏷️ [Recipe List Screen] Recipe preloaded: ${preloadedRecipe != null}');
+        if (preloadedRecipe != null) {
+          print('📦 [Recipe List Screen] Using preloaded data with keys: ${preloadedRecipe.keys.toList()}');
+        }
+      }
+      
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -429,8 +563,9 @@ class _RecipeCard extends StatelessWidget {
             title: data.title,
             ingredients: ingredients, // ✅ pass scan data
             cuisine: preferences["cuisine"]?.toString() ?? "Indian",
-        cookTime: preferences["time"]?.toString() ?? "30m",
-        servings: int.tryParse(preferences["servings"]?.toString() ?? "4") ?? 4,
+            cookTime: preferences["time"]?.toString() ?? "30m",
+            servings: int.tryParse(preferences["servings"]?.toString() ?? "4") ?? 4,
+            fullRecipeData: preloadedRecipe ?? data.fullRecipeData, // ✅ Use preloaded data if available
           ),
         ),
       );

@@ -11,6 +11,7 @@ class RecipeModel {
   final int calories;
   final List<String> ingredients;
   final List<String> instructions;
+  final Map<String, dynamic>? fullRecipeData; // Store complete backend data
 
   RecipeModel({
     required this.id,
@@ -24,16 +25,17 @@ class RecipeModel {
     this.calories = 0,
     List<String>? ingredients,
     List<String>? instructions,
+    this.fullRecipeData,
   }) : ingredients = ingredients ?? [],
        instructions = instructions ?? [];
 
   factory RecipeModel.fromJson(Map<String, dynamic> json) {
     return RecipeModel(
       id: json['id']?.toString() ?? '',
-      title: json['title'] ?? 'Untitled Recipe',
+      title: json['title'] ?? json['recipe_name'] ?? 'Untitled Recipe',
       cuisine: json['cuisine'] ?? 'Unknown Cuisine',
-      cookTime: json['cookTime']?.toString() ?? 'N/A',
-      image: json['image'] ?? '',
+      cookTime: json['cookTime']?.toString() ?? json['total_time']?.toString() ?? json['cooking_time']?.toString() ?? json['time']?.toString() ?? 'N/A',
+      image: json['image'] ?? json['recipe_image_url'] ?? '', // Handle both field names
       isSaved: json['isSaved'] ?? false,
       description: json['description'],
       servings: (json['servings'] as num?)?.toInt() ?? 1,

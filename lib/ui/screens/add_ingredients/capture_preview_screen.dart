@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -9,6 +10,7 @@ import 'review_ingredients_screen.dart';
 import '../../../data/services/scan_bill_service.dart';
 import '../../../core/enums/scan_mode.dart';
 import '../../../data/services/pantry_add_service.dart';
+import '../pantry/pantry_review_ingredients_screen.dart';
 import '../pantry/review_items_screen.dart';
 import '../pantry/pantry_search_add_screen.dart';
 
@@ -28,139 +30,128 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
   CameraController? _controller;
   Future<void>? _initFuture;
   final ImagePicker _picker = ImagePicker();
+  bool _isCapturing = false;
 
   Future<XFile?> _captureImage() async {
     try {
-      if (_controller == null || !_controller!.value.isInitialized) {
+      if (_controller == null) {
+        debugPrint("Camera controller not initialized");
         return null;
       }
-      return await _controller!.takePicture();
+      
+      final XFile? image = await _controller!.takePicture();
+      debugPrint("Image captured successfully: ${image?.path}");
+      return image;
     } catch (e) {
+      debugPrint("Error capturing image: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to capture photo: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
       return null;
     }
   }
 
   Future<void> _initCamera() async {
     try {
-      final List<CameraDescription> cams = await availableCameras();
-      if (cams.isEmpty) return;
-      final CameraController controller = CameraController(
-        cams.first,
-        ResolutionPreset.high,
-        enableAudio: false,
-      );
-      _controller = controller;
-      await controller.initialize();
-      if (!mounted) return;
-      setState(() {});
-    } catch (_) {
-      // If camera fails, we just keep a black background.
-    }
-  }
-
-  Future<void> _openGallery() async {
-    try {
-      // Show loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      // Request camera permission first
+      final cameraPermission = await Permission.camera.request();
       
-      final XFile? file = await _picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 85, // Compress image to 85% quality
-        maxWidth: 1920,   // Limit max width
-        maxHeight: 1920,  // Limit max height
-      );
-      
-      // Close loading dialog
-      if (mounted) Navigator.of(context).pop();
-      
-      if (file == null || !mounted) return;
-
-      debugPrint("📸 Gallery image selected: ${file.path}");
-
-      try {
-        // Show scanning loading
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        );
-        
-        final scanResult = await ScanBillService().scanBill(file);
-        
-        // Close scanning dialog
-        if (mounted) Navigator.of(context).pop();
-        
-        if (widget.mode == ScanMode.cooking) {
-          if (mounted) Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReviewIngredientsScreen(
-                capturedImage: file,
-                scanResult: scanResult,
-              ),
-            ),
-          );
-        } else {
-          // 🧺 PANTRY FLOW - Use same review screen but with pantry mode
-          if (mounted) Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => ReviewIngredientsScreen(
-                capturedImage: file,
-                scanResult: scanResult,
-                mode: ScanMode.pantry,
-              ),
+      if (cameraPermission.isDenied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Camera permission is required to scan receipts'),
+              backgroundColor: Colors.red,
             ),
           );
         }
-      } catch (scanError) {
-        // Close scanning dialog if open
-        if (mounted) Navigator.of(context).pop();
-        
-        debugPrint("❌ Gallery scan failed: $scanError");
+        return;
+      }
+      
+      if (cameraPermission.isPermanentlyDenied) {
         if (mounted) {
-          // Show dialog with options
           showDialog(
             context: context,
             builder: (context) => AlertDialog(
-              title: const Text('Scanning Failed'),
-              content: const Text('This image couldn\'t be scanned. Would you like to:'),
+              title: const Text('Camera Permission Required'),
+              content: const Text('Please enable camera permission in app settings to use the scanning feature.'),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(); // Close dialog
-                  },
-                  child: const Text('Try Camera'),
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context).pop(); // Close dialog
-                    _navigateToManualEntry(); // Go to manual entry
+                    Navigator.of(context).pop();
+                    openAppSettings();
                   },
-                  child: const Text('Enter Manually'),
+                  child: const Text('Settings'),
                 ),
               ],
             ),
           );
         }
+        return;
       }
-    } catch (e) {
-      // Close loading dialog if open
-      if (mounted) Navigator.of(context).pop();
+
+      final List<CameraDescription> cams = await availableCameras();
+      if (cams.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No cameras available on this device'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Try to use back camera first, then front camera
+      CameraDescription? selectedCamera;
+      for (CameraDescription cam in cams) {
+        if (cam.lensDirection == CameraLensDirection.back) {
+          selectedCamera = cam;
+          break;
+        }
+      }
+      // Fallback to first camera if back camera not found
+      selectedCamera ??= cams.first;
       
-      debugPrint("❌ Gallery selection failed: $e");
+      final CameraController controller = CameraController(
+        selectedCamera,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      
+      _controller = controller;
+      
+      // Add delay to prevent camera contention
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      await controller.initialize();
+      if (!mounted) return;
+      
+      // Set flash mode to auto if available
+      try {
+        await controller.setFlashMode(FlashMode.auto);
+      } catch (e) {
+        debugPrint("Flash mode not supported: $e");
+      }
+      
+      setState(() {});
+    } catch (e) {
+      debugPrint("Camera initialization error: $e");
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to select image. Please try again.'),
+          SnackBar(
+            content: Text('Failed to initialize camera: ${e.toString()}'),
             backgroundColor: Colors.red,
           ),
         );
@@ -271,45 +262,68 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        /// Controls Row (center shutter, gallery to the right)
+                        /// Controls Row (center shutter only)
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             const SizedBox(width: 56),
 
                             /// Capture button
                             GestureDetector(
-                              onTap: () async {
-                                final XFile? image = await _captureImage();
-                                if (image == null || !mounted) return;
+                              onTap: _isCapturing ? null : () async {
+                                try {
+                                  setState(() => _isCapturing = true);
+                                  
+                                  // Show loading immediately, then capture
+                                  await Future.delayed(const Duration(milliseconds: 100));
+                                  
+                                  final XFile? image = await _captureImage();
+                                  if (image == null || !mounted) {
+                                    setState(() => _isCapturing = false);
+                                    return;
+                                  }
 
-                                final scanResult = await ScanBillService().scanBill(image);
+                                  // Quick scan with new API - faster timeout for 3ms performance
+                                  final scanResult = await ScanBillService().scanBill(image).timeout(
+                                    const Duration(seconds: 5), // Reduced timeout for faster response
+                                    onTimeout: () => null,
+                                  );
 
-                                // 🔀 FLOW DECISION BASED ON MODE
-                                if (widget.mode == ScanMode.cooking) {
-                                  // 🍳 COOKING FLOW - Use existing review screen
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ReviewIngredientsScreen(
-                                        capturedImage: image,
-                                        scanResult: scanResult,
+                                  // 🔀 FLOW DECISION BASED ON MODE
+                                  if (widget.mode == ScanMode.cooking) {
+                                    // 🍳 COOKING FLOW - Use normal review ingredients screen
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => ReviewIngredientsScreen(
+                                          capturedImage: image,
+                                          scanResult: scanResult,
+                                        ),
                                       ),
-                                    ),
-                                  );
-                                } else {
-                                  // 🧺 PANTRY FLOW - Use same review screen but with pantry mode
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ReviewIngredientsScreen(
-                                        capturedImage: image,
-                                        scanResult: scanResult,
-                                        mode: ScanMode.pantry,
+                                    );
+                                  } else {
+                                    // 🧺 PANTRY FLOW - Use pantry review ingredients screen
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => PantryReviewIngredientsScreen(
+                                          capturedImage: image,
+                                          mode: ScanMode.pantry,
+                                        ),
                                       ),
-                                    ),
-                                  );
+                                    );
+                                  }
+                                } catch (e) {
+                                  setState(() => _isCapturing = false);
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Failed to capture or scan: ${e.toString()}'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                  }
                                 }
                               },
                               child: Container(
@@ -319,37 +333,58 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
                                   border: Border.all(color: Colors.white, width: 5),
                                 ),
                                 child: Center(
-                                  child: Container(
-                                    width: 62,
-                                    height: 62,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+                                  child: _isCapturing
+                                      ? Container(
+                                          width: 84,
+                                          height: 84,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 5),
+                                          ),
+                                          child: Center(
+                                            child: Container(
+                                              width: 62,
+                                              height: 62,
+                                              decoration: BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.white,
+                                              ),
+                                              child: const Center(
+                                                child: SizedBox(
+                                                  width: 30,
+                                                  height: 30,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 3,
+                                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.black87),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        )
+                                      : Container(
+                                          width: 84,
+                                          height: 84,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: Colors.white, width: 5),
+                                          ),
+                                          child: Center(
+                                            child: Container(
+                                              width: 62,
+                                              height: 62,
+                                              decoration: const BoxDecoration(
+                                                shape: BoxShape.circle,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
 
-                            /// Gallery button - outside frame, aligned to bottom-right
-                            GestureDetector(
-                              onTap: _openGallery,
-                              child: Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  color: Colors.white,
-                                  border: Border.all(color: Colors.black.withOpacity(0.12)),
-                                ),
-                                child: const Center(
-                                  child: Icon(
-                                    Icons.photo_library_rounded,
-                                    color: Colors.black87,
-                                  ),
-                                ),
-                              ),
-                            ),
+                            const SizedBox(width: 56),
                           ],
                         ),
                       ],
@@ -360,31 +395,6 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
             );
           },
         ),
-      ),
-    );
-  }
-}
-
-/// Top Button Component
-class _TopIcon extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _TopIcon({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        border: Border.all(color: Colors.black.withOpacity(0.12)),
-      ),
-      child: IconButton(
-        icon: Icon(icon, size: 20, color: Colors.black87),
-        onPressed: onTap,
       ),
     );
   }

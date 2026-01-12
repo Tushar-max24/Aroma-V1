@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'dart:io';
-import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/services/enhanced_ingredient_image_service.dart';
 import '../../../data/repositories/recipe_cache_repository.dart';
 import '../../../core/utils/item_image_resolver.dart';
 import '../../../core/utils/extreme_spring_physics.dart';
+import '../../../ui/widgets/shared_ingredient_icon_cache.dart';
 import 'step_ingredients_bottomsheet.dart';
 import 'step_timer_bottomsheet.dart';
 import '../completion/completion_screen.dart';
@@ -35,127 +36,70 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
   int _secondsRemaining = 0;
   bool _isTimerRunning = false;
   bool _isTimerSet = false;
-  List<Map<String, dynamic>> _cachedSteps = [];
-  bool _isLoadingSteps = false;
 
   @override
   void initState() {
     super.initState();
-    _loadStepsFromCache();
+    // Cache loading disabled - using only backend data
+    debugPrint('🚫 Cache loading disabled - using only backend data');
   }
 
   Future<void> _loadStepsFromCache() async {
-    if (widget.recipeName.isNotEmpty) {
-      setState(() {
-        _isLoadingSteps = true;
-      });
-      
-      try {
-        final cachedSteps = await RecipeCacheRepository.getCookingSteps(widget.recipeName);
-        if (cachedSteps.isNotEmpty) {
-          setState(() {
-            _cachedSteps = cachedSteps;
-            _isLoadingSteps = false;
-          });
-          print('✅ Cooking steps loaded from cache for: ${widget.recipeName}');
-        } else {
-          setState(() {
-            _isLoadingSteps = false;
-          });
-        }
-      } catch (e) {
-        print('Error loading cooking steps from cache: $e');
-        setState(() {
-          _isLoadingSteps = false;
-        });
+    // Cache loading disabled - do nothing
+    debugPrint('🚫 Cache loading disabled - ignoring cache request');
+  }
+
+  // Enhanced ingredient matching helper
+  static bool _isIngredientMatch(String allName, String currentName) {
+    // Handle common variations and plural forms
+    final allWords = allName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final currentWords = currentName.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    
+    // Check if all words from allName are in currentName
+    int matchCount = 0;
+    for (final allWord in allWords) {
+      if (currentWords.any((currentWord) => 
+          currentWord.contains(allWord) || allWord.contains(currentWord))) {
+        matchCount++;
       }
     }
+    
+    // Consider it a match if at least 50% of words match
+    return matchCount >= (allWords.length / 2).ceil();
   }
 
   Widget _buildIngredientIcon(dynamic icon, String ingredientName) {
     if (kDebugMode) {
-      print('🔍 CookingSteps: Building ingredient icon for: $ingredientName');
+      final cacheStatus = SharedIngredientIconCache.getCacheStatus();
+      print('🔍 CookingSteps: Building icon for "$ingredientName" (Cache has ${cacheStatus['cachedItems']} items)');
     }
     
-    // If we have an emoji (not a regular ingredient name), use it directly
-    if (icon is String && icon.isNotEmpty && icon.length <= 2) {
-      return Text(
-        icon,
-        style: const TextStyle(fontSize: 30),
-      );
-    }
-    
-    // Try to find matching ingredient in allIngredients list for better name matching
-    String searchName = ingredientName.toLowerCase().trim();
-    for (final allIng in widget.allIngredients) {
-      final allName = (allIng['item'] ?? allIng['name'] ?? '').toString().toLowerCase().trim();
-      final currentName = ingredientName.toLowerCase().trim();
-      if (allName.contains(currentName) || currentName.contains(allName)) {
-        searchName = allIng['item'] ?? allIng['name'] ?? ingredientName;
-        if (kDebugMode) {
-          print('🔍 CookingSteps: Found better match: "$searchName"');
+    // If icon is a URL (image_url), use it directly for better matching
+    String searchName = ingredientName;
+    if (icon is String && icon.isNotEmpty && (icon.startsWith('http://') || icon.startsWith('https://'))) {
+      // Try to find the matching ingredient name from allIngredients using the imageUrl
+      if (widget.allIngredients.isNotEmpty) {
+        for (final allIng in widget.allIngredients) {
+          final allImageUrl = (allIng['image_url']?.toString() ?? 
+                             allIng['imageUrl']?.toString() ?? 
+                             allIng['image']?.toString() ?? '').toLowerCase().trim();
+          final currentImageUrl = icon.toLowerCase().trim();
+          
+          if (allImageUrl == currentImageUrl) {
+            searchName = (allIng['item'] ?? allIng['name'] ?? ingredientName).toString();
+            if (kDebugMode) {
+              print('🔍 CookingSteps: Found matching ingredient by URL: "$searchName"');
+            }
+            break;
+          }
         }
-        break;
       }
     }
     
-    // Use the same simple FutureBuilder approach as the working bottomsheet
-    return FutureBuilder<String?>(
-      future: IngredientImageService.getIngredientImage(searchName),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return SizedBox(
-            width: 30,
-            height: 30,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
-            ),
-          );
-        }
-        
-        if (snapshot.hasData && snapshot.data != null) {
-          final imagePath = snapshot.data!;
-          if (kDebugMode) {
-            print('🔍 CookingSteps: Found image path: $imagePath');
-          }
-          
-          if (imagePath.startsWith('assets/')) {
-            return Image.asset(
-              imagePath,
-              width: 30,
-              height: 30,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
-            );
-          } else {
-            // For local file paths, check if file exists first
-            final file = File(imagePath);
-            if (file.existsSync()) {
-              if (kDebugMode) {
-                final fileSize = file.lengthSync();
-                print('🔍 CookingSteps: File exists, size: $fileSize bytes');
-              }
-              return Image.file(
-                file,
-                width: 30,
-                height: 30,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
-              );
-            } else {
-              // File doesn't exist, fallback to emoji
-              if (kDebugMode) {
-                print('🔍 CookingSteps: File does not exist: $imagePath');
-              }
-              return _buildEmojiIcon(ingredientName);
-            }
-          }
-        }
-        
-        // If no data or error, fallback to emoji
-        return _buildEmojiIcon(ingredientName);
-      },
+    return SharedIngredientIconCache(
+      icon: icon,
+      ingredientName: searchName,
+      allIngredients: widget.allIngredients,
     );
   }
 
@@ -234,33 +178,112 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Use cached steps if available, otherwise use widget steps
-    final currentSteps = _cachedSteps.isNotEmpty ? _cachedSteps : widget.steps;
+    // Only use backend widget steps, ignore cache completely
+    final currentSteps = widget.steps;
     
     if (currentSteps.isEmpty) {
     return const Scaffold(
       body: Center(
         child: Text(
-          'No cooking steps available',
-          style: TextStyle(fontSize: 16),
+          'No steps available',
+          style: TextStyle(fontSize: 18),
         ),
       ),
     );
     }
     
-    if (_isLoadingSteps) {
-      return const Scaffold(
+    // Validate currentStep is within bounds
+    if (widget.currentStep < 1 || widget.currentStep > currentSteps.length) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.recipeName),
+          backgroundColor: Colors.white,
+          elevation: 0,
+        ),
         body: Center(
-          child: CircularProgressIndicator(),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Invalid step: ${widget.currentStep}',
+                style: const TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Available steps: ${currentSteps.length}',
+                style: const TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
         ),
       );
     }
     
-  final step = currentSteps[widget.currentStep - 1];
+    final step = currentSteps[widget.currentStep - 1];
     final String instruction = (step['instruction'] ?? '').toString();
-    final List<Map<String, dynamic>> stepIngredients =
-        (step['ingredients'] as List?)?.whereType<Map<String, dynamic>>().toList(growable: false) ??
-            <Map<String, dynamic>>[];
+    
+    // Enhanced debug logging for step data
+    if (kDebugMode) {
+      print('🔍 Cooking Steps - Step ${widget.currentStep} Data:');
+      print('  - Raw step data: $step');
+      print('  - Step keys: ${step.keys.toList()}');
+      print('  - ingredients_used: ${step['ingredients_used']}');
+      print('  - ingredients_used type: ${step['ingredients_used'].runtimeType}');
+    }
+    
+    // Enhanced ingredient extraction with multiple fallbacks
+    List<Map<String, dynamic>> stepIngredients = [];
+    
+    // Priority 1: Try ingredients_used field
+    if (step['ingredients_used'] != null) {
+      final ingredientsData = step['ingredients_used'];
+      if (ingredientsData is List) {
+        stepIngredients = ingredientsData
+            .whereType<Map<String, dynamic>>()
+            .toList(growable: false);
+        
+        if (kDebugMode && stepIngredients.isNotEmpty) {
+          print('🔍 Using ingredients_used field with ${stepIngredients.length} items');
+        }
+      }
+    }
+    
+    // Priority 2: Try other possible field names for step-specific ingredients
+    if (stepIngredients.isEmpty) {
+      for (String fieldName in ['step_ingredients', 'ingredients', 'items']) {
+        if (step[fieldName] != null) {
+          final data = step[fieldName];
+          if (data is List) {
+            stepIngredients = data
+                .whereType<Map<String, dynamic>>()
+                .toList(growable: false);
+            
+            if (stepIngredients.isNotEmpty) {
+              if (kDebugMode) {
+                print('🔍 Using $fieldName field with ${stepIngredients.length} items');
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    // Priority 3: Only use all ingredients if NO step-specific ingredients found at all
+    // This should be rare - only when backend doesn't provide step-specific ingredients
+    if (stepIngredients.isEmpty && widget.allIngredients.isNotEmpty) {
+      stepIngredients = widget.allIngredients;
+      if (kDebugMode) {
+        print('⚠️ WARNING: No step-specific ingredients found for step ${widget.currentStep}');
+        print('🔍 Using all ingredients as fallback (${stepIngredients.length} items)');
+      }
+    }
+    
+    if (kDebugMode) {
+      print('🔍 Final stepIngredients count: ${stepIngredients.length}');
+      print('🔍 Final stepIngredients: $stepIngredients');
+    }
+    
     final List<String> tips =
         (step['tips'] as List?)
         ?.where((e) => e != null)
@@ -464,9 +487,7 @@ class _CookingStepsScreenState extends State<CookingStepsScreen> {
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (context) => StepIngredientsBottomSheet(
-                          stepIngredients: List<Map<String, dynamic>>.from(
-  widget.steps[widget.currentStep - 1]['ingredients'] ?? [],
-),
+                          stepIngredients: stepIngredients,
                           allIngredients: widget.allIngredients,
                           currentStepIndex: widget.currentStep - 1,
                         ),
@@ -502,14 +523,38 @@ Column(
   children: stepIngredients.map<Widget>((ingredient) {
     final name = (ingredient['item'] ?? ingredient['name'] ?? 'Ingredient').toString();
     final qty = (ingredient['quantity']?.toString() ?? ingredient['qty']?.toString() ?? '');
-    final icon = ingredient['icon'] ?? name;
-
+    
+    // First try to get imageUrl from step ingredient itself
+    var imageUrl = ingredient['image_url']?.toString() ?? 
+                 ingredient['imageUrl']?.toString() ?? 
+                 ingredient['image']?.toString() ?? '';
+    
+    // If no imageUrl in step ingredient, look for it in the main allIngredients list
+    if (imageUrl.isEmpty && widget.allIngredients.isNotEmpty) {
+      for (final allIng in widget.allIngredients) {
+        final allName = (allIng['item'] ?? allIng['name'] ?? '').toString().toLowerCase().trim();
+        final currentName = name.toLowerCase().trim();
+        if (allName == currentName || currentName.contains(allName) || allName.contains(currentName)) {
+          // Extract imageUrl from multiple possible fields in main ingredient list
+          imageUrl = allIng['image_url']?.toString() ?? 
+                     allIng['imageUrl']?.toString() ?? 
+                     allIng['image']?.toString() ?? '';
+          if (kDebugMode) {
+            print('🔍 Found imageUrl in allIngredients for "$name": $imageUrl');
+          }
+          break;
+        }
+      }
+    }
+    
+    final icon = imageUrl.isNotEmpty ? imageUrl : name; // Use imageUrl if available, otherwise name
+    
     if (kDebugMode) {
       print('🔍 CookingSteps Ingredient Data:');
       print('  - Raw ingredient: $ingredient');
       print('  - Name: "$name"');
-      print('  - Icon: "$icon"');
       print('  - Qty: "$qty"');
+      print('  - ImageUrl: "$imageUrl"');
     }
 
     return Container(

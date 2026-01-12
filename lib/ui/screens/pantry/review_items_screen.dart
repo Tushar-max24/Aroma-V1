@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/pantry_add_service.dart';
 import '../../../data/services/shopping_list_service.dart';
+import '../../../data/services/mongo_ingredient_service.dart';
 import '../../../state/pantry_state.dart';
 
 const Color kAccent = Color(0xFFFF7A4A);
@@ -101,11 +102,17 @@ class _ReviewItemsScreenState extends State<ReviewItemsScreen> {
         quantity: qty,
         unit: unit,
         category: 'Pantry',
+        imageUrl: null, // No imageUrl available in this screen
       );
     }
 
     // Save to server
     final success = await PantryAddService().saveToPantry(reviewItems);
+
+    // Store ingredients in MongoDB after successful pantry save
+    if (success) {
+      await MongoIngredientService.storeScanBillIngredients(reviewItems, source: "pantry");
+    }
 
     if (success) {
       // Go back to previous screen with added items

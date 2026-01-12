@@ -29,6 +29,7 @@ class CachedImage extends StatelessWidget {
 
     if (imageUrl.startsWith('http')) {
       // 🌐 Network image (cached)
+      debugPrint('🖼️ Loading network image: $imageUrl');
       image = CachedNetworkImage(
         imageUrl: imageUrl,
         fit: fit,
@@ -37,11 +38,15 @@ class CachedImage extends StatelessWidget {
         placeholder: (_, __) =>
             placeholder ??
             const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-        errorWidget: (_, __, ___) =>
-            errorWidget ?? Container(color: Colors.grey.shade300),
+        errorWidget: (_, __, stackTrace) {
+          debugPrint('❌ Failed to load network image: $imageUrl');
+          debugPrint('❌ Error: $stackTrace');
+          return errorWidget ?? Container(color: Colors.grey.shade300);
+        },
       );
     } else if (!kIsWeb && File(imageUrl).existsSync()) {
       // 📂 Local file (camera / gallery)
+      debugPrint('🖼️ Loading local file: $imageUrl');
       image = Image.file(
         File(imageUrl),
         fit: fit,
@@ -50,6 +55,7 @@ class CachedImage extends StatelessWidget {
       );
     } else {
       // 🧯 Fallback
+      debugPrint('🖼️ Using fallback placeholder for: $imageUrl');
       image = errorWidget ?? Container(color: Colors.grey.shade300);
     }
 

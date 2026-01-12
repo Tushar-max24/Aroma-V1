@@ -14,7 +14,10 @@ import '../../../widgets/primary_button.dart';
 import 'review_ingredients_list_screen.dart';
 import '../../../data/services/scan_bill_service.dart';
 import '../../../data/services/pantry_add_service.dart';
+import '../../../data/services/mongo_ingredient_service.dart';
 import '../pantry/review_items_screen.dart';
+
+import 'package:lottie/lottie.dart';
 
 enum ReviewState { confirm, scanning, failed }
 
@@ -59,6 +62,40 @@ class _ReviewIngredientsScreenState extends State<ReviewIngredientsScreen> {
           // PANTRY FLOW - Process and route to pantry review
           debugPrint(" PANTRY MODE - Raw scan result: $result");
           
+          // Check if scan result has ingredients data directly from new API
+          if (result.containsKey("ingredients_with_quantity")) {
+            final ingredients = result["ingredients_with_quantity"];
+            if (ingredients is List && ingredients.isNotEmpty) {
+              debugPrint(" PANTRY MODE - Direct ingredients found: $ingredients");
+              
+              // Convert new API structure to expected format with nutritional data
+              final convertedIngredients = ingredients.map((item) => {
+                "item": item["item"] ?? "Unknown",
+                "quantity": item["quantity"] ?? 1,
+                "unit": item["unit"] ?? "pcs",
+                "imageURL": item["imageURL"] ?? "",
+                "match%": item["match%"] ?? 100,
+                "macros": item["macros"] ?? {},
+                "calories": item["macros"]?["calories_kcal"] ?? 0,
+                "protein": item["macros"]?["protein_g"] ?? 0,
+                "carbs": item["macros"]?["carbohydrates_g"] ?? 0,
+                "fat": item["macros"]?["fat_g"] ?? 0,
+              }).toList();
+              
+              if (!mounted) return;
+              
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewItemsScreen(
+                    items: convertedIngredients,
+                  ),
+                ),
+              );
+              return;
+            }
+          }
+          
           final rawText = result["raw_text"];
           debugPrint(" PANTRY MODE - Raw text: $rawText");
           
@@ -71,14 +108,64 @@ class _ReviewIngredientsScreenState extends State<ReviewIngredientsScreen> {
 
             if (!mounted) return;
             
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ReviewItemsScreen(
-                  items: List<Map<String, dynamic>>.from(items),
+            if (items != null && items.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ReviewItemsScreen(
+                    items: List<Map<String, dynamic>>.from(items),
+                  ),
                 ),
-              ),
-            );
+              );
+            } else {
+              // Fallback: Try to extract ingredients directly from scan result
+              try {
+                final List<Map<String, dynamic>> fallbackItems = [];
+                
+                // Check if scan result has ingredients data directly
+                if (result.containsKey("ingredients_with_quantity")) {
+                  final ingredients = result["ingredients_with_quantity"];
+                  if (ingredients is List) {
+                    for (var item in ingredients) {
+                      if (item is Map && item.containsKey("item")) {
+                        fallbackItems.add({
+                          "item": item["item"] ?? "Unknown",
+                          "quantity": item["quantity"] ?? 1,
+                          "unit": item["unit"] ?? "pcs",
+                          "imageURL": item["imageURL"] ?? "",
+                          "match%": item["match%"] ?? 100,
+                          "macros": item["macros"] ?? {},
+                          "calories": item["macros"]?["calories_kcal"] ?? 0,
+                          "protein": item["macros"]?["protein_g"] ?? 0,
+                          "carbs": item["macros"]?["carbohydrates_g"] ?? 0,
+                          "fat": item["macros"]?["fat_g"] ?? 0,
+                        });
+                      }
+                    }
+                  }
+                }
+                
+                debugPrint(" PANTRY MODE - Fallback items: $fallbackItems");
+                
+                if (fallbackItems.isNotEmpty && mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ReviewItemsScreen(
+                        items: fallbackItems,
+                      ),
+                    ),
+                  );
+                } else {
+                  if (!mounted) return;
+                  setState(() => _state = ReviewState.failed);
+                }
+              } catch (fallbackError) {
+                debugPrint(" PANTRY MODE - Fallback also failed: $fallbackError");
+                if (!mounted) return;
+                setState(() => _state = ReviewState.failed);
+              }
+            }
           } catch (e) {
             debugPrint(" PANTRY MODE - Processing error: $e");
             
@@ -96,6 +183,13 @@ class _ReviewIngredientsScreenState extends State<ReviewIngredientsScreen> {
                         "item": item["item"] ?? "Unknown",
                         "quantity": item["quantity"] ?? 1,
                         "unit": item["unit"] ?? "pcs",
+                        "imageURL": item["imageURL"] ?? "",
+                        "match%": item["match%"] ?? 100,
+                        "macros": item["macros"] ?? {},
+                        "calories": item["macros"]?["calories_kcal"] ?? 0,
+                        "protein": item["macros"]?["protein_g"] ?? 0,
+                        "carbs": item["macros"]?["carbohydrates_g"] ?? 0,
+                        "fat": item["macros"]?["fat_g"] ?? 0,
                       });
                     }
                   }
@@ -124,6 +218,9 @@ class _ReviewIngredientsScreenState extends State<ReviewIngredientsScreen> {
             }
           }
         } else {
+          debugPrint("🎯 [NORMAL MODE] Raw scan result: $result");
+          debugPrint("🎯 [NORMAL MODE] Result keys: ${result.keys.toList()}");
+          
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -310,7 +407,7 @@ class _ConfirmPhotoView extends StatelessWidget {
   }
 }
 
-///// 2️⃣ Scanning UI
+///// 2️⃣ Scanning UI (ANIMATED – LOTTIE)
 class _ScanningView extends StatelessWidget {
   final XFile? capturedImage;
   final VoidCallback onFail;
@@ -322,127 +419,92 @@ class _ScanningView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    
+    // Responsive sizing based on screen dimensions
+    final animationSize = screenWidth * 0.65; // 65% of screen width
+    final titleFontSize = screenWidth * 0.04; // Responsive title font
+    final descriptionFontSize = screenWidth * 0.032; // Responsive description font
+    final bottomTextFontSize = screenWidth * 0.028; // Responsive bottom text font
+    
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: capturedImage != null
-                ? kIsWeb
-                    ? CachedImage(
-                        imageUrl: capturedImage!.path,
-                        fit: BoxFit.cover,
-                        errorWidget: _buildFallbackImage(),
-                      )
-                    : Image.file(
-                        File(capturedImage!.path),
-                        fit: BoxFit.cover,
-                      )
-                : _buildFallbackImage(),
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: screenWidth * 0.06, // 6% of screen width
+            vertical: screenHeight * 0.02, // 2% of screen height
           ),
-          
-          // Back button at top-left
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            left: 16,
-            child: GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+          child: Column(
+            children: [
+              // Top spacing
+              SizedBox(height: screenHeight * 0.08),
+              
+              // 🔄 Vegetable Scan Animation
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: Lottie.asset(
+                    'assets/Vegetable_Scan.json',
+                    width: animationSize,
+                    height: animationSize,
+                    repeat: true,
+                    fit: BoxFit.contain,
+                  ),
                 ),
-                child: const Icon(Icons.arrow_back, color: Colors.black),
               ),
-            ),
-          ),
-          
-          // Headphone icon at top-right
-          Positioned(
-            top: MediaQuery.of(context).padding.top + 16,
-            right: 16,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.headphones, color: Colors.black, size: 24),
-            ),
-          ),
 
-          // Center icon
-          Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.35),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.search_rounded,
-                size: 40,
-                color: Colors.white,
-              ),
-            ),
-          ),
+              SizedBox(height: screenHeight * 0.03),
 
-          // Scanner Frame Overlay
-          Positioned.fill(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(40, 120, 40, 200),
-              child: CustomPaint(painter: _ScanningFrame()),
-            ),
-          ),
+              // Title
+              Text(
+                'Hang tight',
+                style: TextStyle(
+                  fontSize: titleFontSize.clamp(18.0, 24.0), // Min 18, Max 24
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black,
+                ),
+              ),
 
-          // Bottom text
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Just a few more seconds',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
+              SizedBox(height: screenHeight * 0.02),
+
+              // Description
+              Text(
+                "We're scanning your invoice\nfor all the yummy goodies...",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: descriptionFontSize.clamp(14.0, 16.0), // Min 14, Max 16
+                  color: Colors.black87,
+                  height: 1.4,
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              // Bottom text with proper spacing
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: screenHeight * 0.08, // Responsive bottom padding
+                ),
+                child: Text(
+                  "Just a few more seconds and\nyour pantry will be up to date.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: bottomTextFontSize.clamp(12.0, 14.0), // Min 12, Max 14
+                    color: Colors.black54,
+                    height: 1.4,
                   ),
-                  const Text(
-                    'and your pantry will be up to date.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                      height: 1.4,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-
-  Widget _buildFallbackImage() {
-    return Image.asset(
-      AssetPaths.vegBoard,
-      fit: BoxFit.cover,
-    );
-  }
 }
+
 
 ///// 3️⃣ Failed UI Sheet
 class _UploadFailedView extends StatelessWidget {

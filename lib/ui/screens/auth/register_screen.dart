@@ -14,10 +14,10 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
+  // final _emailController = TextEditingController(); // Commented out - not using email field
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  // final _confirmPasswordController = TextEditingController(); // Commented out - not using confirm password
   
   bool _isLoading = false;
   String? _errorMessage;
@@ -25,10 +25,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _emailController.dispose();
+    // _emailController.dispose(); // Commented out
     _phoneController.dispose();
     _passwordController.dispose();
-    _confirmPasswordController.dispose();
+    // _confirmPasswordController.dispose(); // Commented out
     super.dispose();
   }
 
@@ -45,7 +45,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     final response = await Provider.of<AuthService>(context, listen: false).register(
       name: _nameController.text.trim(),
-      email: _emailController.text.trim(),
+      // email: _emailController.text.trim(), // Commented out - not using email
       phone: _phoneController.text.trim(),
       password: _passwordController.text,
     );
@@ -181,41 +181,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  const Text(
-                    'Email',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      hintText: 'Enter your email',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (!value.contains('@') || !value.contains('.')) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                  ),
+                  // Email field commented out - not using email for registration
+                  // const SizedBox(height: 16),
+                  // const Text(
+                  //   'Email',
+                  //   style: TextStyle(
+                  //     fontSize: 16,
+                  //     fontWeight: FontWeight.w500,
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 8),
+                  // TextFormField(
+                  //   controller: _emailController,
+                  //   keyboardType: TextInputType.emailAddress,
+                  //   decoration: InputDecoration(
+                  //     hintText: 'Enter your email',
+                  //     border: OutlineInputBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //       borderSide: BorderSide(color: Colors.grey[300]!),
+                  //     ),
+                  //     enabledBorder: OutlineInputBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //       borderSide: BorderSide(color: Colors.grey[300]!),
+                  //     ),
+                  //     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  //   ),
+                  //   validator: (value) {
+                  //     if (value == null || value.isEmpty) {
+                  //       return 'Please enter your email';
+                  //     }
+                  //     if (!value.contains('@') || !value.contains('.')) {
+                  //       return 'Please enter a valid email address';
+                  //     }
+                  //     return null;
+                  //   },
+                  // ),
                   
                   const SizedBox(height: 16),
                   
@@ -315,41 +315,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
                   
-                  const SizedBox(height: 16),
-                  
-                  const Text(
-                    'Confirm Password',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    controller: _confirmPasswordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Confirm your password',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[300]!),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please confirm your password';
-                      }
-                      if (value != _passwordController.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
-                  ),
+                  // Confirm password field commented out - not using confirm password
+                  // const SizedBox(height: 16),
+                  // const Text(
+                  //   'Confirm Password',
+                  //   style: TextStyle(
+                  //     fontSize: 16,
+                  //     fontWeight: FontWeight.w500,
+                  //   ),
+                  // ),
+                  // const SizedBox(height: 8),
+                  // TextFormField(
+                  //   controller: _confirmPasswordController,
+                  //   obscureText: true,
+                  //   decoration: InputDecoration(
+                  //     hintText: 'Confirm your password',
+                  //     border: OutlineInputBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //       borderSide: BorderSide(color: Colors.grey[300]!),
+                  //     ),
+                  //     enabledBorder: OutlineInputBorder(
+                  //       borderRadius: BorderRadius.circular(12),
+                  //       borderSide: BorderSide(color: Colors.grey[300]!),
+                  //     ),
+                  //     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  //   ),
+                  //   validator: (value) {
+                  //     if (value == null || value.isEmpty) {
+                  //       return 'Please confirm your password';
+                  //     }
+                  //     if (value != _passwordController.text) {
+                  //       return 'Passwords do not match';
+                  //     }
+                  //     return null;
+                  //   },
+                  // ),
                   
                   const SizedBox(height: 32),
                   

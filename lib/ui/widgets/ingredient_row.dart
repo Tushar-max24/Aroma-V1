@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'dart:io';
-import '../../../data/services/ingredient_image_service.dart';
+import '../../../data/services/enhanced_ingredient_image_service.dart';
 import '../../../core/utils/item_image_resolver.dart';
+import '../../../data/services/scan_bill_service.dart';
 
 class IngredientRow extends StatelessWidget {
   final String emoji;
   final String name;
   final int matchPercent;
+  final int quantity;
   final VoidCallback onRemove;
+  final VoidCallback? onEdit;
   final bool useImageService;
+  final String? imageUrl;
 
   const IngredientRow({
     super.key,
     required this.emoji,
     required this.name,
     required this.matchPercent,
+    required this.quantity,
     required this.onRemove,
+    this.onEdit,
     this.useImageService = true,
+    this.imageUrl,
   });
 
   @override
   Widget build(BuildContext context) {
+    debugPrint("IngredientRow: name=$name, quantity=$quantity");
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -33,10 +44,11 @@ class IngredientRow extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
-          // Dynamic ingredient image/emoji
+          // Dynamic ingredient image/emoji - INSTANT display
           Container(
             width: 56,
             height: 56,
@@ -44,47 +56,16 @@ class IngredientRow extends StatelessWidget {
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: useImageService
-                ? FutureBuilder<String?>(
-                    future: IngredientImageService.getIngredientImage(name),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                        );
-                      }
-                      
-                      if (snapshot.hasData && snapshot.data != null) {
-                        final imagePath = snapshot.data!;
-                        // Check if it's a local file path or asset path
-                        if (imagePath.startsWith('assets/')) {
-                          return Image.asset(
-                            imagePath,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => _buildEmojiFallback(),
-                          );
-                        } else {
-                          // For local file paths, check if file exists first
-                          final file = File(imagePath);
-                          if (file.existsSync()) {
-                            return Image.file(
-                              file,
-                              width: 40,
-                              height: 40,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => _buildEmojiFallback(),
-                            );
-                          } else {
-                            // File doesn't exist, fallback to emoji
-                            return _buildEmojiFallback();
-                          }
-                        }
-                      }
-                      
-                      return _buildEmojiFallback();
+            child: useImageService && imageUrl != null && imageUrl!.isNotEmpty
+                ? Image.network(
+                    imageUrl!,
+                    width: 40,
+                    height: 40,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => _buildEmojiFallback(),
+                    loadingBuilder: (_, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return _buildEmojiFallback(); // Show emoji while loading
                     },
                   )
                 : _buildEmojiFallback(),
@@ -106,36 +87,93 @@ class IngredientRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'match: $matchPercent%',
+                  'Quantity: $quantity',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.black.withOpacity(0.55),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'match: $matchPercent%',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.green,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
 
-          // Remove button (x)
-          GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFFFFE5E5),
+          // Action buttons
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Edit button
+              if (onEdit != null)
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFE3F2FD),
+                    ),
+                    child: const Icon(
+                      Icons.edit,
+                      size: 16,
+                      color: Color(0xFF2196F3),
+                    ),
+                  ),
+                ),
+              
+              if (onEdit != null)
+                const SizedBox(width: 8),
+              
+              // Remove button (x)
+              GestureDetector(
+                onTap: onRemove,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFFFE5E5),
+                  ),
+                  child: const Icon(
+                    Icons.close,
+                    size: 16,
+                    color: Color(0xFFFF6A6A),
+                  ),
+                ),
               ),
-              child: const Icon(
-                Icons.close,
-                size: 16,
-                color: Color(0xFFFF6A6A),
-              ),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+  
+  // Method to fetch ingredient image - use provided URLs first
+  Future<String?> _getIngredientImageFromMetrics() async {
+    try {
+      debugPrint("🎯 [IngredientRow] Checking imageUrl for $name: $imageUrl");
+      
+      // First check if imageUrl is already provided from the scan result
+      if (imageUrl != null && imageUrl!.isNotEmpty) {
+        debugPrint("🎯 [IngredientRow] Using provided imageUrl: $imageUrl");
+        return imageUrl;
+      }
+      
+      // No image URL provided, return null to show emoji
+      debugPrint("🎯 [IngredientRow] No imageUrl provided for $name, using emoji");
+      return null;
+    } catch (e) {
+      debugPrint(" [IngredientRow] Error getting image for $name: $e");
+      return null;
+    }
   }
   
   Widget _buildEmojiFallback() {
@@ -147,4 +185,3 @@ class IngredientRow extends StatelessWidget {
     );
   }
 }
-

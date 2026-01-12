@@ -7,8 +7,10 @@ import '../home/generate_recipe_screen.dart';
 import '../../../state/pantry_state.dart';
 import '../../../core/utils/category_engine.dart';
 import '../../../data/services/pantry_list_service.dart';
+import '../../../data/services/home_recipe_service.dart';
 import '../../../core/utils/item_image_resolver.dart';
 import '../../../ui/widgets/ingredient_row.dart';
+import '../../widgets/cooking_loader.dart';
 
 
 const Color kAccent = Color(0xFFFF7A4A);
@@ -40,6 +42,7 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
 
   String _selectedCategory = 'All';
   bool _isLoading = true;
+  bool _isGenerating = false;
   List<_Ingredient> _allIngredients = [];
   Set<String> _selectedIngredients = {};
   final PantryListService _pantryListService = PantryListService();
@@ -176,6 +179,16 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
         backgroundColor: Colors.white,
         body: Center(
           child: CircularProgressIndicator(color: kAccent),
+        ),
+      );
+    }
+
+    // Show CookingLoader when generating recipes
+    if (_isGenerating) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: CookingLoader(
+          message: "generating your weekly recipes...",
         ),
       );
     }
@@ -436,7 +449,7 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
                   borderRadius: BorderRadius.circular(18),
                 ),
               ),
-              onPressed: () {
+              onPressed: () async {
                 if (_selectedIngredients.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -447,18 +460,60 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
                   return;
                 }
                 
+                // Show loading animation first
+                setState(() {
+                  _isGenerating = true;
+                });
+                
                 final selectedList = _selectedIngredients.toList();
                 print("🔍 DEBUG: Selected ingredients for recipe generation: $selectedList");
                 
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GenerateRecipeScreen(
-                      usePantryIngredients: true,
-                      pantryIngredients: selectedList,
+                // Generate recipes in background during animation
+                List<Map<String, dynamic>> generatedRecipes = [];
+                try {
+                  // Create request data for weekly recipe generation
+                  final requestData = {
+                    "Cuisine_Preference": "Indian",
+                    "Dietary_Restrictions": "Vegetarian",
+                    "Cookware_Available": ["Microwave Oven"],
+                    "Meal_Type": ["Breakfast", "Lunch", "Snacks", "Dinner"],
+                    "Cooking_Time": "< 30 min",
+                    "Serving": "1",
+                    "Ingredients_Available": selectedList,
+                  };
+                  
+                  print('📤 [SelectIngredients] Sending request with ${selectedList.length} ingredients');
+                  
+                  // Import HomeRecipeService to generate recipes
+                  final homeRecipeService = HomeRecipeService();
+                  final dynamicResult = await homeRecipeService.generateWeeklyRecipes(requestData);
+                  generatedRecipes = List<Map<String, dynamic>>.from(dynamicResult);
+                  print('✅ [SelectIngredients] Generated ${generatedRecipes.length} recipes during animation');
+                } catch (e) {
+                  print('❌ [SelectIngredients] Recipe generation failed: $e');
+                  // Still navigate even if generation fails, let GenerateRecipeScreen handle it
+                }
+                
+                // Wait for remaining animation time if generation completed quickly
+                await Future.delayed(const Duration(milliseconds: 500));
+                
+                if (mounted) {
+                  // Reset generating state and navigate with pre-generated recipes
+                  setState(() {
+                    _isGenerating = false;
+                  });
+                  
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GenerateRecipeScreen(
+                        usePantryIngredients: true,
+                        pantryIngredients: selectedList,
+                        preGeneratedRecipes: generatedRecipes,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                }
               },
               child: Text(
                 _selectedIngredients.isEmpty 

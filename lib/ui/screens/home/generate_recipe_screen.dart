@@ -7,14 +7,16 @@ import '../../../state/pantry_state.dart';
 import '../weekly_generation/weekly_generation_recipe_detail_screen.dart';
 import '../../widgets/recipe_card.dart';
 import '../recipe_detail/recipe_detail_screen.dart';
+import '../../widgets/cooking_loader.dart';
 import '../../../core/services/auth_service.dart';
 import '../auth/login_screen.dart';
 
 class GenerateRecipeScreen extends StatefulWidget {
-  const GenerateRecipeScreen({super.key, this.usePantryIngredients = false, this.pantryIngredients = const []});
+  const GenerateRecipeScreen({super.key, this.usePantryIngredients = false, this.pantryIngredients = const [], this.preGeneratedRecipes = const []});
 
   final bool usePantryIngredients;
   final List<String> pantryIngredients;
+  final List<Map<String, dynamic>> preGeneratedRecipes;
 
   @override
   State<GenerateRecipeScreen> createState() {
@@ -37,7 +39,20 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
     super.initState();
     print("🔍 DEBUG: GenerateRecipeScreen initState called");
     _initializeDates();
-    _generateWeeklyRecipes();
+    
+    // Check if recipes are pre-generated
+    if (widget.preGeneratedRecipes.isNotEmpty) {
+      print("🔍 DEBUG: Using ${widget.preGeneratedRecipes.length} pre-generated recipes");
+      setState(() {
+        _weeklyRecipes = widget.preGeneratedRecipes;
+        _isLoading = false;
+      });
+      // Start timer to check for image updates
+      _startImageCheckTimer();
+    } else {
+      // Only generate if no pre-generated recipes are provided
+      _generateWeeklyRecipes();
+    }
   }
 
   @override
@@ -73,6 +88,9 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
     setState(() {
       _isLoading = true;
     });
+
+    // Show animation for a moment before starting generation
+    await Future.delayed(const Duration(seconds: 1));
 
     try {
       List<String> pantryIngredients;
@@ -320,7 +338,7 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
           children: [
             // Date selector
             Container(
-              height: 60,
+              height: 70,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
@@ -340,29 +358,34 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                     },
                     child: Container(
                       margin: const EdgeInsets.only(right: 12),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
                         color: isSelected ? const Color(0xFFFF7A4A) : Colors.grey.shade100,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             dateParts.length >= 2 ? dateParts[0] : '',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: 11,
                               fontWeight: FontWeight.w600,
                               color: isSelected ? Colors.white : Colors.black54,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             dateParts.length >= 2 ? dateParts[1] : '',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 9,
                               fontWeight: FontWeight.w500,
                               color: isSelected ? Colors.white : Colors.black54,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -375,7 +398,11 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
             // Content
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFFF7A4A),
+                      ),
+                    )
                   : selectedDateRecipes.isEmpty
                       ? _buildEmptyState()
                       : _buildRecipeList(selectedDateRecipes),
@@ -387,53 +414,87 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.restaurant_menu,
-            size: 64,
-            color: Colors.grey.shade400,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No recipes for this date',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade600,
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: MediaQuery.of(context).size.height - 
+                     MediaQuery.of(context).padding.top - 
+                     MediaQuery.of(context).padding.bottom - 
+                     140, // Account for AppBar and date selector
+        ),
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: MediaQuery.of(context).padding.bottom + 20,
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.restaurant_menu,
+                  size: MediaQuery.of(context).size.width * 0.15, // Responsive icon size
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'No recipes for this date',
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width * 0.045, // Responsive font size
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Try generating new recipes',
+                  style: TextStyle(
+                    fontSize: MediaQuery.of(context).size.width * 0.035, // Responsive font size
+                    color: Colors.grey.shade500,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.6, // Responsive button width
+                  child: ElevatedButton(
+                    onPressed: _generateWeeklyRecipes,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF7A4A),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(25),
+                      ),
+                    ),
+                    child: Text(
+                      'Generate Recipes',
+                      style: TextStyle(
+                        fontSize: MediaQuery.of(context).size.width * 0.04, // Responsive font size
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Try generating new recipes',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade500,
-            ),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _generateWeeklyRecipes,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFF7A4A),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
-            ),
-            child: const Text('Generate Recipes'),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildRecipeList(List<Map<String, dynamic>> recipes) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      physics: const BouncingScrollPhysics(),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 8,
+        bottom: MediaQuery.of(context).padding.bottom + 80, // Account for safe area and navigation
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -443,7 +504,7 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
               'Breakfast',
               recipes.where((r) => r['Meal_Type']?.toString() == 'Breakfast').toList(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
           ],
           
           // Lunch section
@@ -452,7 +513,7 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
               'Lunch',
               recipes.where((r) => r['Meal_Type']?.toString() == 'Lunch').toList(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
           ],
           
           // Snacks section
@@ -461,7 +522,7 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
               'Snacks',
               recipes.where((r) => r['Meal_Type']?.toString() == 'Snacks').toList(),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
           ],
           
           // Dinner section
@@ -533,7 +594,7 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: Container(
-                    height: 180,
+                    height: MediaQuery.of(context).size.height * 0.2, // Responsive height (20% of screen height)
                     width: double.infinity,
                     color: Colors.grey.shade200,
                     child: recipe['image_url'] != null && recipe['image_url'].toString().isNotEmpty
@@ -636,17 +697,22 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
+                        flex: 3,
                         child: Text(
                           recipe['Recipe Name']?.toString() ?? 'Untitled Recipe',
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: Colors.black,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      const SizedBox(width: 8),
                       IconButton(
                         onPressed: () {
                           // Toggle favorite
@@ -655,6 +721,11 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                           Icons.favorite_border,
                           color: Colors.grey,
                         ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 40,
+                          minHeight: 40,
+                        ),
                       ),
                     ],
                   ),
@@ -662,9 +733,12 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                   Text(
                     recipe['Short Description']?.toString() ?? '',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
                       color: Colors.grey.shade600,
+                      height: 1.3,
                     ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 12),
                   Row(

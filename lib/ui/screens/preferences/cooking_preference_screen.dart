@@ -1,6 +1,8 @@
 // lib/ui/screens/preferences/cooking_preference_screen.dart
 import 'package:flutter/material.dart';
 import '../recipes/recipe_list_screen.dart';
+import '../../widgets/recipe_generation_animation.dart';
+import '../../../data/services/home_recipe_service.dart';
 
 class CookingPreferenceScreen extends StatefulWidget {
   final List<Map<String, dynamic>> ingredients;
@@ -17,6 +19,8 @@ class CookingPreferenceScreen extends StatefulWidget {
 
 class _CookingPreferenceScreenState extends State<CookingPreferenceScreen> {
   int servingCount = 4;
+  bool _isGenerating = false;
+  final HomeRecipeService _homeRecipeService = HomeRecipeService();
 
   // ✅ LOCAL MUTABLE COPY (IMPORTANT FIX)
   late List<Map<String, dynamic>> _workingIngredients;
@@ -118,6 +122,15 @@ class _CookingPreferenceScreenState extends State<CookingPreferenceScreen> {
   // ---------------------------
   @override
   Widget build(BuildContext context) {
+    // Show animation when generating
+    if (_isGenerating) {
+      return const RecipeGenerationAnimation(
+        message: "generating your recipes",
+        primaryColor: Color(0xFFFF6A45),
+        secondaryColor: Color(0xFFFFD93D),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       bottomNavigationBar: _bottomSection(),
@@ -343,25 +356,62 @@ class _CookingPreferenceScreenState extends State<CookingPreferenceScreen> {
           }
         }
 
-        final pref = {
-          "Cuisine_Preference": _selectedPerSection["Cuisine Preference"],
-          "Dietary_Restrictions": _selectedPerSection["Dietary Restrictions"],
-          "Cookware_Available": [_selectedPerSection["Cookware & Utensils"]],
-          "Meal_Type": [_selectedPerSection["Meal Type"]],
-          "Cooking_Time": _selectedPerSection["Cooking Time"],
-          "Serving": servingCount,
-          "Ingredients_Available": _workingIngredients,
-        };
+        // Show animation first
+        setState(() {
+          _isGenerating = true;
+        });
 
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => RecipeListScreen(
-              ingredients: _workingIngredients,
-              preferences: pref,
-            ),
-          ),
-        );
+        try {
+          final pref = {
+            "Cuisine_Preference": _selectedPerSection["Cuisine Preference"],
+            "Dietary_Restrictions": _selectedPerSection["Dietary Restrictions"],
+            "Cookware_Available": [_selectedPerSection["Cookware & Utensils"]],
+            "Meal_Type": [_selectedPerSection["Meal Type"]],
+            "Cooking_Time": _selectedPerSection["Cooking Time"],
+            "Serving": servingCount,
+            "Ingredients_Available": _workingIngredients,
+          };
+
+          // Generate recipes during animation
+          final recipes = await _homeRecipeService.generateWeeklyRecipes(pref);
+          
+          // Wait for animation to show
+          await Future.delayed(const Duration(seconds: 2));
+          
+          // Reset generating state and navigate to recipe detail
+          if (mounted) {
+            setState(() {
+              _isGenerating = false;
+            });
+            
+            // Navigate to first recipe detail instead of recipe list
+            if (recipes.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RecipeListScreen(
+                    ingredients: _workingIngredients,
+                    preferences: pref,
+                  ),
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          // Reset generating state on error
+          if (mounted) {
+            setState(() {
+              _isGenerating = false;
+            });
+            
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Failed to generate recipes: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       },
       child: Container(
         height: 60,

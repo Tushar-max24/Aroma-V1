@@ -19,6 +19,7 @@ import 'package:flavoryx/ui/screens/home/pantry_selection_screen.dart';
 import '../../../data/services/pantry_list_service.dart';
 import '../home/home_screen.dart';
 import '../../widgets/cached_image.dart';
+import '../../widgets/cooking_loader.dart';
 
 const Color kAccent = Color(0xFFFF7A4A);
 
@@ -58,24 +59,9 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
             // Loading Overlay (show on top when loading)
             if (_isLoading)
               Container(
-                color: Colors.white.withOpacity(0.9),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        color: Color(0xFFFF7A4A),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'cooking recipes with your pantry items...',
-                        style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 16,
-                        ),
-                      ),
-                    ],
-                  ),
+                color: Colors.white.withOpacity(0.95),
+                child: const CookingLoader(
+                  message: "cooking recipes with your pantry items...",
                 ),
               ),
           ],
@@ -481,6 +467,11 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
     try {
       print('🔄 [Calendar] Starting recipe generation with pantry items...');
       
+      // Show loading animation first
+      setState(() {
+        _isLoading = true;
+      });
+      
       // Fetch actual pantry items from remote server
       final pantryItems = await _pantryListService.fetchPantryItems();
       
@@ -493,6 +484,9 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
       print('🥦 Found ${ingredients.length} remote pantry items: $ingredients');
       
       if (ingredients.isEmpty) {
+        setState(() {
+          _isLoading = false;
+        });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -505,20 +499,8 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
         return;
       }
       
-      // INSTANTLY navigate to weekly recipe screen (like manual selection)
-      if (mounted) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => GenerateRecipeScreen(
-              usePantryIngredients: true,
-              pantryIngredients: ingredients,
-            ),
-          ),
-        );
-      }
-      
-      // Generate recipes in background (non-blocking)
+      // Generate recipes in background during animation
+      List<Map<String, dynamic>> generatedRecipes = [];
       try {
         // Create request data for weekly recipe generation
         final requestData = {
@@ -533,34 +515,44 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
         
         print('📤 [Calendar] Sending request with ${ingredients.length} ingredients');
         
-        final weeklyResponse = await _homeRecipeService.generateWeeklyRecipes(requestData);
-        
-        // Show success message after generation completes
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Generated ${weeklyResponse.length} weekly recipes using your pantry items!'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
+        // Generate recipes synchronously during animation
+        final dynamicResult = await _homeRecipeService.generateWeeklyRecipes(requestData);
+        generatedRecipes = List<Map<String, dynamic>>.from(dynamicResult);
+        print('✅ [Calendar] Generated ${generatedRecipes.length} recipes during animation');
       } catch (e) {
-        print('❌ Background recipe generation failed: $e');
-        // Show error message but don't disrupt navigation
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Recipe generation failed: ${e.toString().replaceAll('Exception: ', '')}'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
+        print('❌ [Calendar] Recipe generation failed: $e');
+        // Still navigate even if generation fails, let GenerateRecipeScreen handle it
       }
+      
+      // Wait for remaining animation time if generation completed quickly
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Reset loading state and navigate with pre-generated recipes
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => GenerateRecipeScreen(
+              usePantryIngredients: true,
+              pantryIngredients: ingredients,
+              preGeneratedRecipes: generatedRecipes,
+            ),
+          ),
+        );
+      }
+      
     } catch (e) {
       print('❌ Error generating weekly recipes: $e');
+      // Reset loading state on error
       if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        
         String errorMessage = 'Failed to generate recipes';
         
         if (e.toString().contains('receive timeout')) {

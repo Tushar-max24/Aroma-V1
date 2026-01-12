@@ -15,6 +15,7 @@ class PantrySelectionScreen extends StatefulWidget {
 }
 
 class _PantrySelectionScreenState extends State<PantrySelectionScreen> {
+  final PantryListService _pantryListService = PantryListService();
   bool _isLoading = false;
   List<String> _pantryIngredients = [];
   bool _includeAllPantry = false;
@@ -27,65 +28,34 @@ class _PantrySelectionScreenState extends State<PantrySelectionScreen> {
   }
 
   Future<void> _loadPantryIngredients() async {
-    // Try to get pantry ingredients immediately without showing loader first
-    try {
-      final pantryState = Provider.of<PantryState>(context, listen: false);
-      
-      // First try: Use cached pantry items immediately
-      if (pantryState.pantryItems.isNotEmpty) {
-        final cachedIngredients = pantryState.pantryItems.map((item) => item.name).toList();
-        setState(() {
-          _pantryIngredients = cachedIngredients;
-        });
-        print("🔍 DEBUG: Using cached pantry ingredients: ${cachedIngredients.length} items");
-        
-        // Load fresh data in background without blocking UI
-        _refreshPantryInBackground();
-        return;
-      }
-      
-      // Second try: Load pantry state without showing loader yet
-      await pantryState.loadPantry();
-      if (pantryState.pantryItems.isNotEmpty) {
-        final loadedIngredients = pantryState.pantryItems.map((item) => item.name).toList();
-        setState(() {
-          _pantryIngredients = loadedIngredients;
-        });
-        print("🔍 DEBUG: Loaded pantry ingredients: ${loadedIngredients.length} items");
-        return;
-      }
-    } catch (e) {
-      print("🔍 DEBUG: Could not access PantryState, proceeding with remote load: $e");
-    }
-
-    // Only show loader as last resort if we need to fetch from remote API
     setState(() {
       _isLoading = true;
     });
-
+    
     try {
-      // Use the same remote API as calendar screen for consistency
-      final pantryListService = PantryListService();
-      final pantryItems = await pantryListService.fetchPantryItems();
+      // Use remote server data for consistency
+      final pantryItems = await _pantryListService.fetchPantryItems();
       
-      final pantryIngredients = pantryItems
+      final ingredients = pantryItems
           .map((item) => item['name']?.toString() ?? '')
           .where((name) => name.isNotEmpty)
           .toList();
-
-      setState(() {
-        _pantryIngredients = pantryIngredients;
-        _isLoading = false;
-      });
-
-      print("🔍 DEBUG: Loaded ${pantryIngredients.length} pantry ingredients from remote API: $pantryIngredients");
-    } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      print("❌ Error loading pantry ingredients: $e");
       
-      // Fallback to PantryState if remote fails
+      setState(() {
+        _pantryIngredients = ingredients;
+        _isLoading = false;
+      });
+      
+      print("🔍 DEBUG: Loaded remote pantry ingredients: ${ingredients.length} items");
+      print("🔍 DEBUG: Remote ingredients: $ingredients");
+      
+    } catch (e) {
+      print("❌ Error loading remote pantry ingredients: $e");
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // Fallback to local PantryState if remote fails
       try {
         final pantryState = Provider.of<PantryState>(context, listen: false);
         await pantryState.loadPantry();
@@ -96,17 +66,16 @@ class _PantrySelectionScreenState extends State<PantrySelectionScreen> {
           _pantryIngredients = fallbackIngredients;
         });
         
-        print("🔍 DEBUG: Fallback loaded ${fallbackIngredients.length} pantry ingredients from local: $fallbackIngredients");
+        print("🔍 DEBUG: Fallback to local pantry ingredients: ${fallbackIngredients.length} items");
       } catch (fallbackError) {
-        print("❌ Fallback also failed: $fallbackError");
+        print("❌ Error in fallback to local pantry: $fallbackError");
       }
     }
   }
 
   void _refreshPantryInBackground() async {
     try {
-      final pantryListService = PantryListService();
-      final pantryItems = await pantryListService.fetchPantryItems();
+      final pantryItems = await _pantryListService.fetchPantryItems();
       
       final pantryIngredients = pantryItems
           .map((item) => item['name']?.toString() ?? '')

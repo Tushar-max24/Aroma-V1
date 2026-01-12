@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../state/pantry_state.dart';
-import '../../../core/utils/item_image_resolver.dart';
 import '../../../data/services/shopping_list_service.dart';
 import '../../../data/services/ingredient_metrics_service.dart';
+import '../../../core/utils/item_image_resolver.dart';
+import '../../../ui/widgets/ingredient_row.dart';
 
 class ShoppingListScreen extends StatefulWidget {
   const ShoppingListScreen({Key? key}) : super(key: key);
@@ -22,14 +24,6 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   void initState() {
     super.initState();
     _loadMetrics();
-    _loadShoppingList();
-  }
-
-  Future<void> _loadShoppingList() async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
-    debugPrint('ShoppingListScreen: Force loading shopping list data...');
-    debugPrint('ShoppingListScreen: Items count after load: ${shoppingService.items.length}');
   }
 
   Future<void> _loadMetrics() async {
@@ -38,6 +32,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       _metricsLoaded = true;
     });
   }
+
   // ---------------- EDIT ITEM ----------------
   Future<void> _editItem(String name, String currentQuantity, String currentUnit) async {
     final quantityController = TextEditingController(text: currentQuantity);
@@ -226,7 +221,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
                           final double requiredQty = _parseQty(item['quantity']);
                           
-                          // Get appropriate unit for the item
+                          // Get appropriate unit for item
                           String unit = item['unit'] ?? '';
                           // If unit is empty or default 'pcs', try to get better metric from service
                           if ((unit.isEmpty || unit == 'pcs') && _metricsLoaded) {
@@ -248,29 +243,31 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
 
                           return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
+                            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(22),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.grey.withOpacity(0.1),
-                                  spreadRadius: 1,
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
+                                  color: Colors.black.withOpacity(0.04),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
                             child: ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 8,
-                              ),
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.grey.shade200,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
                                 child: ItemImageResolver.getImageWidget(
                                   item['name'],
-                                  size: 40,
+                                  size: 64,
                                   imageUrl: item['imageUrl'], // Pass imageUrl parameter
                                 ),
                               ),

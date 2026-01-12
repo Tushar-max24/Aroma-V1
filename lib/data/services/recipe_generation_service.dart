@@ -38,6 +38,16 @@ class RecipeGenerationService {
                   enrichedMeal['Date'] = day['Date']?.toString() ?? '';
                   enrichedMeal['image_url'] = '';
                   enrichedMeal['image_generated'] = false;
+                  
+                  // Preserve cuisine preference from the original request
+                  final cuisinePreference = preferences['Cuisine_Preference']?.toString();
+                  if (cuisinePreference != null && cuisinePreference.isNotEmpty) {
+                    enrichedMeal['Cuisine_Preference'] = cuisinePreference;
+                    enrichedMeal['Cuisine'] = cuisinePreference;
+                    enrichedMeal['cuisine'] = cuisinePreference;
+                    debugPrint("🍽️ [RecipeService] Added cuisine to meal: $cuisinePreference");
+                  }
+                  
                   allMeals.add(enrichedMeal);
                 }
               }
@@ -63,6 +73,16 @@ class RecipeGenerationService {
               final enrichedRecipe = Map<String, dynamic>.from(recipe);
               enrichedRecipe['image_url'] = ''; // Start with empty image
               enrichedRecipe['image_generated'] = false; // Track if image is generated
+              
+              // Preserve cuisine preference from the original request
+              final cuisinePreference = preferences['Cuisine_Preference']?.toString();
+              if (cuisinePreference != null && cuisinePreference.isNotEmpty) {
+                enrichedRecipe['Cuisine_Preference'] = cuisinePreference;
+                enrichedRecipe['Cuisine'] = cuisinePreference;
+                enrichedRecipe['cuisine'] = cuisinePreference;
+                debugPrint("🍽️ [RecipeService] Added cuisine to recipe: $cuisinePreference");
+              }
+              
               return enrichedRecipe;
             }
             return <String, dynamic>{};

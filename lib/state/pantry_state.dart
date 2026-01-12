@@ -95,6 +95,17 @@ class PantryState extends ChangeNotifier {
     return getQty(name) > 0 && getQty(name) <= threshold;
   }
 
+  // CLEAR ALL ITEMS
+  Future<void> clearAllItems() async {
+    debugPrint("🗑️ Clearing all pantry items from local state...");
+    _pantryQty.clear();
+    _pantryUnit.clear();
+    _items.clear();
+    await _savePantry();
+    notifyListeners();
+    debugPrint("✅ Local pantry state cleared");
+  }
+
   // SAVE TO LOCAL STORAGE
   Future<void> _savePantry() async {
     final prefs = await SharedPreferences.getInstance();

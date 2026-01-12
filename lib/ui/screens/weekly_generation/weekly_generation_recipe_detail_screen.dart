@@ -135,6 +135,9 @@ class _WeeklyGenerationRecipeDetailScreenState extends State<WeeklyGenerationRec
         _reviewData = _generateSampleReviews(recipeName);
         debugPrint('⭐ Generated sample reviews for $recipeName: ${_reviewData.length} reviews');
         
+        debugPrint('🥗 Backend ingredients: ${backendIngredients.length}');
+        debugPrint('🥗 Using ingredient data: ${_ingredientData.length}');
+        
       });
       
       debugPrint('✅ Successfully extracted recipe data from backend');
@@ -211,7 +214,7 @@ class _WeeklyGenerationRecipeDetailScreenState extends State<WeeklyGenerationRec
     
     return Consumer<PantryState>(
       builder: (_, pantryState, __) {
-        final pantryItems = pantryState.pantryItems;
+        final pantryItems = pantryState.items; // Use 'items' instead of 'pantryItems'
 
         final availableIngredients = _ingredientData.where((ingredient) {
           final name = ingredient['item']?.toString().toLowerCase() ?? '';

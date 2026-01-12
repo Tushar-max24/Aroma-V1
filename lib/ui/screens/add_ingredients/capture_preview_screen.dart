@@ -125,25 +125,15 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
       
       final CameraController controller = CameraController(
         selectedCamera,
-        ResolutionPreset.high,
+        ResolutionPreset.medium, // Faster than high
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
       
       _controller = controller;
       
-      // Add delay to prevent camera contention
-      await Future.delayed(const Duration(milliseconds: 500));
-      
       await controller.initialize();
       if (!mounted) return;
-      
-      // Set flash mode to auto if available
-      try {
-        await controller.setFlashMode(FlashMode.auto);
-      } catch (e) {
-        debugPrint("Flash mode not supported: $e");
-      }
       
       setState(() {});
     } catch (e) {
@@ -272,48 +262,40 @@ class _CapturePreviewScreenState extends State<CapturePreviewScreen> {
                             /// Capture button
                             GestureDetector(
                               onTap: _isCapturing ? null : () async {
-                                try {
-                                  setState(() => _isCapturing = true);
-                                  
-                                  // Show loading immediately, then capture
-                                  await Future.delayed(const Duration(milliseconds: 100));
-                                  
-                                  final XFile? image = await _captureImage();
-                                  if (image == null || !mounted) {
-                                    setState(() => _isCapturing = false);
-                                    return;
-                                  }
+  try {
+    setState(() => _isCapturing = true);
+    
+    // Capture image first
+    final XFile? image = await _captureImage();
+    if (image == null || !mounted) {
+      setState(() => _isCapturing = false);
+      return;
+    }
 
-                                  // Quick scan with new API - faster timeout for 3ms performance
-                                  final scanResult = await ScanBillService().scanBill(image).timeout(
-                                    const Duration(seconds: 5), // Reduced timeout for faster response
-                                    onTimeout: () => null,
-                                  );
-
-                                  // 🔀 FLOW DECISION BASED ON MODE
-                                  if (widget.mode == ScanMode.cooking) {
-                                    // 🍳 COOKING FLOW - Use normal review ingredients screen
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => ReviewIngredientsScreen(
-                                          capturedImage: image,
-                                          scanResult: scanResult,
-                                        ),
-                                      ),
-                                    );
-                                  } else {
-                                    // 🧺 PANTRY FLOW - Use pantry review ingredients screen
-                                    Navigator.pushReplacement(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => PantryReviewIngredientsScreen(
-                                          capturedImage: image,
-                                          mode: ScanMode.pantry,
-                                        ),
-                                      ),
-                                    );
-                                  }
+    // Navigate instantly - no delays
+    if (widget.mode == ScanMode.cooking) {
+      // 🍳 COOKING FLOW - Use normal review ingredients screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ReviewIngredientsScreen(
+            capturedImage: image,
+            scanResult: null,
+          ),
+        ),
+      );
+    } else {
+      // 🧺 PANTRY FLOW - Use pantry review ingredients screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PantryReviewIngredientsScreen(
+            capturedImage: image,
+            mode: ScanMode.pantry,
+          ),
+        ),
+      );
+    }
                                 } catch (e) {
                                   setState(() => _isCapturing = false);
                                   if (mounted) {

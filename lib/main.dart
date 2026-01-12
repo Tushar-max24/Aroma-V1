@@ -11,6 +11,7 @@ import 'package:flavoryx/data/services/gemini_recipe_service.dart';
 import 'package:flavoryx/data/services/shopping_list_service.dart';
 import 'package:flavoryx/data/services/cache_manager_service.dart';
 import 'package:flavoryx/data/services/ingredient_image_service.dart';
+import 'package:flavoryx/data/services/enhanced_ingredient_image_service.dart';
 import 'package:flavoryx/core/services/auth_service.dart';
 import 'package:flavoryx/data/services/app_state_service.dart';
 import 'package:flavoryx/data/services/app_state_persistence_service.dart';
@@ -32,8 +33,9 @@ void main() async {
       // Continue without .env file - services will use default values
     }
 
-    // Initialize Ingredient Image service
+    // Initialize Ingredient Image services
     await IngredientImageService.initialize();
+    await EnhancedIngredientImageService.initialize();
 
     // Initialize AuthService
     final authService = AuthService();

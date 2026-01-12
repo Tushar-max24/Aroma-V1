@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../state/pantry_state.dart';
 import '../../../data/services/shopping_list_service.dart';
 import '../../../data/services/ingredient_metrics_service.dart';
+import '../../../data/services/pantry_list_service.dart';
 import '../../../core/utils/category_engine.dart';
 import '../../../core/utils/item_image_resolver.dart';
+import '../../../ui/widgets/ingredient_row.dart';
 import 'shopping_list_screen.dart';
 
 class LowStockItemsScreen extends StatefulWidget {
@@ -16,26 +19,50 @@ class LowStockItemsScreen extends StatefulWidget {
 }
 
 class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
-  Set<String> selectedItems = {};
-  Map<String, double> itemQuantities = {};
-  Map<String, String> itemUnits = {};
   final IngredientMetricsService _metricsService = IngredientMetricsService();
+  final PantryListService _pantryListService = PantryListService();
   bool _metricsLoaded = false;
+  List<Map<String, dynamic>> _remotePantryItems = [];
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadMetrics();
-    _loadPantryData();
+    _loadRemotePantryItems();
   }
 
-  Future<void> _loadPantryData() async {
-    // Add a small delay to ensure pantry state is loaded
-    await Future.delayed(const Duration(milliseconds: 100));
-    final pantryState = Provider.of<PantryState>(context, listen: false);
-    await pantryState.loadPantry();
-    debugPrint('LowStockScreen: Force loading pantry data...');
-    debugPrint('LowStockScreen: Pantry items count: ${pantryState.pantryQty.length}');
+  Future<void> _loadRemotePantryItems() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final pantryItems = await _pantryListService.fetchPantryItems();
+      setState(() {
+        _remotePantryItems = pantryItems;
+        _isLoading = false;
+      });
+      print('📦 LowStockScreen: Loaded ${pantryItems.length} remote pantry items');
+    } catch (e) {
+      print('❌ LowStockScreen: Error loading remote pantry items: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // Get pantry items from remote server (same as home screen)
+  List<Map<String, dynamic>> get pantryItems {
+    return _remotePantryItems.map((item) => {
+      'name': item['name']?.toString() ?? '',
+      'quantity': (item['quantity'] as num?)?.toDouble() ?? 1.0,
+      'unit': item['unit']?.toString() ?? 'pcs',
+      'imageUrl': '', // Server doesn't provide imageUrl in list response
+      'price': (item['price'] as num?)?.toDouble() ?? 0.0,
+      'source': item['source']?.toString() ?? 'manual',
+      '_id': item['_id']?.toString() ?? '',
+    }).toList();
   }
 
   Future<void> _loadMetrics() async {
@@ -73,8 +100,8 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
                 hintText: "e.g., kg, g, pcs, liters",
                 helperText: "Suggested: ${_metricsService.getMetricsForIngredient(name)}",
                 helperStyle: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-              ),
-            ),
+              )
+            )
           ],
         ),
         actions: [
@@ -84,7 +111,7 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
           ),
           TextButton(
             onPressed: () {
-              final newQuantity = double.tryParse(quantityController.text) ?? currentQuantity;
+              final newQuantity = quantityController.text.trim();
               String newUnit = unitController.text.trim().isNotEmpty ? unitController.text.trim() : currentUnit;
               
               // If user didn't enter a unit, use the suggested metric
@@ -95,9 +122,9 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
                 }
               }
               
-              if (newQuantity > 0 && newUnit.isNotEmpty) {
-                final pantryState = Provider.of<PantryState>(context, listen: false);
-                pantryState.setItem(name, newQuantity, newUnit);
+              if (newQuantity.isNotEmpty && newUnit.isNotEmpty) {
+                final shoppingService = Provider.of<ShoppingListService>(context, listen: false);
+                shoppingService.updateItem(name, newQuantity, newUnit);
               }
               Navigator.pop(context);
             },
@@ -108,89 +135,59 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
     );
   }
 
-  // ---------------- TOGGLE ITEM ----------------
-  void _toggleItemSelection(
-    String itemName,
-    double quantity,
-    String unit,
-  ) {
-    if (selectedItems.contains(itemName)) {
-      setState(() {
-        selectedItems.remove(itemName);
-        itemQuantities.remove(itemName);
-        itemUnits.remove(itemName);
-      });
-    } else {
-      setState(() {
-        selectedItems.add(itemName);
-        itemQuantities[itemName] = quantity;
-        itemUnits[itemName] = unit;
-      });
-    }
-  }
-
-  // ---------------- ADD TO SHOPPING LIST ----------------
-  void _addItemsToShoppingList() {
-    debugPrint('=== LowStockScreen._addItemsToShoppingList ===');
-    debugPrint('Selected items: $selectedItems');
-    debugPrint('Item quantities: $itemQuantities');
-    debugPrint('Item units: $itemUnits');
-    
-    final shoppingService =
-        Provider.of<ShoppingListService>(context, listen: false);
-    final pantry = Provider.of<PantryState>(context, listen: false);
-
-    debugPrint('Shopping service items before: ${shoppingService.items.length}');
-
-    for (final name in selectedItems) {
-      debugPrint('Adding to shopping list: $name');
-      debugPrint('  - Quantity: ${itemQuantities[name] ?? 1}');
-      debugPrint('  - Unit: ${itemUnits[name] ?? 'pcs'}');
-      debugPrint('  - Category: ${CategoryEngine.getCategory(name)}');
-      
-      shoppingService.addItem(
-        name: name,
-        quantity: itemQuantities[name] ?? 1,
-        unit: itemUnits[name] ?? 'pcs',
-        category: CategoryEngine.getCategory(name),
-        imageUrl: pantry.pantryImages[name] ?? '', // Get imageUrl from pantry data
-      );
-    }
-    
-    debugPrint('Shopping service items after: ${shoppingService.items.length}');
-    debugPrint('Navigation to shopping list...');
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ShoppingListScreen(),
-      ),
-    );
-    debugPrint('==============================');
-  }
-  
-
-  // ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
-    // 🔥 LIVE PANTRY DATA
-    final pantry = context.watch<PantryState>();
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close, color: Colors.black),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            "Low Stock Items",
+            style: TextStyle(color: Colors.black),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                "Loading low stock items...",
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-    final lowStockItems = pantry.pantryQty.entries
-        .where((e) => e.value > 0 && e.value <= 3)
-        .toList();
+    // Calculate low stock items from remote data (same logic as home screen)
+    final lowStockItems = pantryItems.where((item) {
+      final qty = item['quantity'] is num ? (item['quantity'] as num).toDouble() : 0;
+      return qty > 0 && qty <= 3;
+    }).toList();
 
     // Debug logging
     debugPrint('=== Low Stock Debug ===');
-    debugPrint('Total pantry items: ${pantry.pantryQty.length}');
+    debugPrint('Total remote pantry items: ${pantryItems.length}');
     debugPrint('Low stock items count: ${lowStockItems.length}');
     for (var item in lowStockItems) {
-      debugPrint('Low stock item: ${item.key} -> quantity: ${item.value}');
+      debugPrint('Low stock item: ${item['name']} -> quantity: ${item['quantity']}');
     }
     debugPrint('====================');
 
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -203,236 +200,91 @@ class _LowStockItemsScreenState extends State<LowStockItemsScreen> {
           style: TextStyle(color: Colors.black),
         ),
       ),
-
-      body: Stack(
-        children: [
-          Column(
-            children: [
-              // Show count header
-              Container(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_amber, color: Colors.orange.shade600),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${lowStockItems.length} items in low stock',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ],
+      body: lowStockItems.isEmpty
+        ? Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.inventory_2_outlined,
+                  size: 64,
+                  color: Colors.grey,
                 ),
-              ),
-              
-              if (selectedItems.isNotEmpty)
-                const SizedBox(height: 56),
-
-              Expanded(
-                child: lowStockItems.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.inventory_2_outlined,
-                              size: 64,
-                              color: Colors.grey.shade300,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No low stock items 🎉',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 18,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'All your pantry items are well stocked',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: lowStockItems.length,
-                        itemBuilder: (context, index) {
-                          final item = lowStockItems[index];
-                          final name = item.key.toString();
-                          final qty = item.value;
-                          final pantry = context.read<PantryState>();
-                          String unit = pantry.pantryUnit[name] ?? '';
-                          
-                          // If pantry unit is empty or default 'pcs', try to get better metric from service
-                          if ((unit.isEmpty || unit == 'pcs') && _metricsLoaded) {
-                            final suggestedMetric = _metricsService.getMetricsForIngredient(name);
-                            debugPrint('LowStock: $name -> pantry unit: "$unit", suggested metric: $suggestedMetric');
-                            if (suggestedMetric.isNotEmpty) {
-                              unit = suggestedMetric; // Keep the full metric string like "500 g"
-                            }
-                          } else if (unit.isEmpty && !_metricsLoaded) {
-                            unit = 'pcs'; // fallback while loading
-                          }
-                          
-                          debugPrint('LowStock: $name -> final unit: $unit (loaded: $_metricsLoaded)');
-
-                          final isSelected =
-                              selectedItems.contains(name);
-
-                          return Container(
-                            margin:
-                                const EdgeInsets.only(bottom: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius:
-                                  BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black
-                                      .withOpacity(0.05),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
-                            child: ListTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.grey.shade200,
-                                child: ItemImageResolver.getImageWidget(
-                                  name,
-                                  size: 40,
-                                  imageUrl: pantry.pantryImages[name] ?? '', // Get imageUrl from pantry data
-                                ),
-                              ),
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                    fontWeight:
-                                        FontWeight.w600),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'in ${CategoryEngine.getCategory(name)}',
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Qty: $qty | Metric: $unit',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Edit button
-                                  GestureDetector(
-                                    onTap: () => _editItem(name, qty, unit),
-                                    child: Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: const Color(0xFFE3F2FD),
-                                      ),
-                                      child: const Icon(
-                                        Icons.edit,
-                                        size: 16,
-                                        color: Color(0xFF2196F3),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  // Add to cart button
-                                  IconButton(
-                                    icon: Icon(
-                                      isSelected
-                                          ? Icons.check_circle
-                                          : Icons
-                                              .shopping_cart_outlined,
-                                      color: isSelected
-                                          ? Colors.green
-                                          : Colors.grey,
-                                    ),
-                                    onPressed: () =>
-                                        _toggleItemSelection(
-                                      name,
-                                      qty,
-                                      unit,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-
-          // ---------------- TOP BAR ----------------
-          if (selectedItems.isNotEmpty)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 56,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xffFFF1E8),
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          Colors.black.withOpacity(0.1),
-                      blurRadius: 4,
-                    ),
-                  ],
+                SizedBox(height: 16),
+                Text(
+                  "No low stock items",
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment:
-                      MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Added to shopping list : ${selectedItems.length}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w500),
-                    ),
-                    OutlinedButton(
-                      onPressed: _addItemsToShoppingList,
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                            color: Colors.orange),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(20),
-                        ),
-                      ),
-                      child: const Text(
-                        'Finish Adding',
-                        style: TextStyle(
-                            color: Colors.orange),
-                      ),
-                    ),
-                  ],
+                SizedBox(height: 8),
+                Text(
+                  "Items with quantity ≤ 3 will appear here",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
-              ),
+              ],
             ),
-        ],
-      ),
+          )
+        : ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: lowStockItems.length,
+            itemBuilder: (context, index) {
+              final item = lowStockItems[index];
+              final name = item['name'].toString();
+              final qty = item['quantity'] as double;
+              final unit = item['unit'].toString();
+              
+              debugPrint('LowStock: $name -> quantity: $qty, unit: $unit');
+
+              return IngredientRow(
+                emoji: ItemImageResolver.getEmojiForIngredient(name),
+                name: name,
+                matchPercent: 100,
+                quantity: qty.toInt(),
+                onRemove: () {
+                  // Show confirmation dialog before removing
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text("Remove Item"),
+                      content: Text("Are you sure you want to remove $name from low stock items?"),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text("Cancel"),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            // Remove from pantry items
+                            setState(() {
+                              _remotePantryItems.removeWhere((item) => item['name'] == name);
+                            });
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("$name removed from pantry"),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 2),
+                              ),
+                            );
+                          },
+                          child: const Text("Remove"),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                onEdit: () => _editItem(name, qty, unit),
+                useImageService: false, // Low stock items don't have image URLs
+                imageUrl: null,
+              );
+            },
+          ),
     );
   }
 }

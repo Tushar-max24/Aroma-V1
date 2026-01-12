@@ -7,7 +7,18 @@ import 'package:flutter/material.dart';
 class EnhancedIngredientImageService {
   static bool _isInitialized = false;
   static const String _fallbackImagePath = 'assets/images/pantry/temp_pantry.png';
-  static String get _baseUrl => dotenv.env['MONGO_EXTERNAL_API_URL'] ?? "http://3.108.110.151:5001";
+  static String get _baseUrl {
+    // Try to get from environment, fallback to default if not available
+    try {
+      final envUrl = dotenv.env['MONGO_EXTERNAL_API_URL'];
+      if (envUrl != null && envUrl.isNotEmpty) {
+        return envUrl;
+      }
+    } catch (e) {
+      // dotenv not initialized, use fallback
+    }
+    return "http://3.108.110.151:5001";
+  }
 
   /// Initialize the service (INSTANT mode - no MongoDB)
   static Future<void> initialize() async {
@@ -15,6 +26,16 @@ class EnhancedIngredientImageService {
       _isInitialized = true;
       if (kDebugMode) {
         print('✅ Enhanced Ingredient Image Service initialized in INSTANT mode (no MongoDB/cache)');
+        print('🌐 Using base URL: $_baseUrl');
+        try {
+          if (dotenv.env['MONGO_EXTERNAL_API_URL'] == null) {
+            print('⚠️ MONGO_EXTERNAL_API_URL not found in .env, using default: $_baseUrl');
+          } else {
+            print('✅ MONGO_EXTERNAL_API_URL found: ${dotenv.env['MONGO_EXTERNAL_API_URL']}');
+          }
+        } catch (e) {
+          print('⚠️ dotenv not available, using default URL: $_baseUrl');
+        }
       }
     }
   }

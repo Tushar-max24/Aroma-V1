@@ -48,27 +48,19 @@ class IngredientRow extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: Row(
         children: [
-          // Dynamic ingredient image/emoji - INSTANT display
+          // Dynamic ingredient image/emoji - using ItemImageResolver for consistency
           Container(
-            width: 56,
-            height: 56,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: useImageService && imageUrl != null && imageUrl!.isNotEmpty
-                ? Image.network(
-                    imageUrl!,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => _buildEmojiFallback(),
-                    loadingBuilder: (_, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return _buildEmojiFallback(); // Show emoji while loading
-                    },
-                  )
-                : _buildEmojiFallback(),
+            child: ItemImageResolver.getImageWidget(
+              name,
+              size: 64,
+              imageUrl: imageUrl, // Pass imageUrl to let resolver handle it
+            ),
           ),
 
           const SizedBox(width: 14),
@@ -180,7 +172,7 @@ class IngredientRow extends StatelessWidget {
     return Center(
       child: Text(
         emoji.isNotEmpty ? emoji : ItemImageResolver.getEmojiForIngredient(name),
-        style: const TextStyle(fontSize: 30),
+        style: const TextStyle(fontSize: 44),
       ),
     );
   }

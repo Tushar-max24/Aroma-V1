@@ -129,8 +129,8 @@ class IngredientTile extends StatelessWidget {
           // Dynamic ingredient image with MongoDB-first caching
           IngredientImageWidget(
             ingredientName: name,
-            width: 24,
-            height: 24,
+            width: 64,
+            height: 64,
             imageUrl: imageUrl, // Pass the backend S3 URL
           ),
           const SizedBox(width: 8),

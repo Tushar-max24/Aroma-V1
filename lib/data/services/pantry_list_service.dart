@@ -2,31 +2,42 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'pantry_crud_service.dart';
 
 class PantryListService {
-  // Updated to use the new API endpoint
-  static const String _baseUrl = 'http://3.108.110.151:5001/pantry/list'; // Updated to new API
+  final PantryCrudService _crudService = PantryCrudService();
 
   /// Fetch all pantry items from remote server
   Future<List<Map<String, dynamic>>> fetchPantryItems() async {
     try {
-      final response = await http.get(Uri.parse(_baseUrl));
-
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-
-        if (decoded['status'] == true && decoded['data'] != null) {
-          return List<Map<String, dynamic>>.from(decoded['data']);
-        } else {
-          return [];
-        }
-      } else {
-        throw Exception('Failed to load pantry list: ${response.statusCode}');
-      }
+      // Use the new CRUD service
+      final items = await _crudService.getPantryItems();
+      debugPrint("✅ [PantryList] Retrieved ${items.length} items from remote server");
+      return items;
     } catch (e) {
       debugPrint("❌ Remote pantry fetch failed: $e");
       // Fallback to local storage if remote fails
       return await _fetchPantryFromLocal();
+    }
+  }
+
+  /// Clear all pantry items from remote server
+  Future<bool> clearAllPantryItems() async {
+    try {
+      debugPrint("🗑️ [PantryList] Clearing all pantry items from remote server...");
+      
+      final success = await _crudService.clearAllPantryItems();
+      
+      if (success) {
+        debugPrint("✅ [PantryList] Successfully cleared all pantry items");
+        return true;
+      } else {
+        debugPrint("❌ [PantryList] Failed to clear pantry items");
+        return false;
+      }
+    } catch (e) {
+      debugPrint("❌ [PantryList] Exception while clearing pantry: $e");
+      return false;
     }
   }
 
@@ -38,6 +49,7 @@ class PantryListService {
       
       if (raw != null) {
         final decoded = jsonDecode(raw) as List<dynamic>;
+        debugPrint("✅ [PantryList] Retrieved ${decoded.length} items from local storage");
         return List<Map<String, dynamic>>.from(decoded);
       }
       return [];

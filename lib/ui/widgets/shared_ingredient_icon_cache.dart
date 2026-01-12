@@ -14,7 +14,7 @@ class SharedIngredientIconCache extends StatefulWidget {
     super.key,
     required this.icon,
     required this.ingredientName,
-    this.size = 30,
+    this.size = 64,
     this.allIngredients,
   });
 

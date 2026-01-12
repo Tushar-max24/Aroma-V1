@@ -6,6 +6,9 @@ import '../preferences/cooking_preference_screen.dart';
 import '../home/generate_recipe_screen.dart';
 import '../../../state/pantry_state.dart';
 import '../../../core/utils/category_engine.dart';
+import '../../../data/services/pantry_list_service.dart';
+import '../../../core/utils/item_image_resolver.dart';
+import '../../../ui/widgets/ingredient_row.dart';
 
 
 const Color kAccent = Color(0xFFFF7A4A);
@@ -39,6 +42,7 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
   bool _isLoading = true;
   List<_Ingredient> _allIngredients = [];
   Set<String> _selectedIngredients = {};
+  final PantryListService _pantryListService = PantryListService();
 
   @override
   void initState() {
@@ -52,17 +56,20 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
     });
 
     try {
-      // Use PantryState provider instead of manual parsing
-      final pantryState = Provider.of<PantryState>(context, listen: false);
-      await pantryState.loadPantry(); // Ensure pantry is loaded
+      print("🔍 DEBUG: Starting to load pantry ingredients from REMOTE server...");
       
-      // Convert pantry ingredients to _Ingredient objects with image URLs
-      final ingredients = pantryState.pantryItems.map((item) => _Ingredient(
-        name: item.name,
-        category: CategoryEngine.getCategory(item.name),
-        subtitle: CategoryEngine.getCategory(item.name),
-        icon: _getIconForIngredient(item.name),
-        imageUrl: item.imageUrl, // Include imageUrl
+      // Load from remote server using PantryListService
+      final remotePantryItems = await _pantryListService.fetchPantryItems();
+      print("🔍 DEBUG: Got ${remotePantryItems.length} items from remote server");
+      print("🔍 DEBUG: Remote items: ${remotePantryItems.map((e) => e['name']).toList()}");
+      
+      // Convert remote pantry ingredients to _Ingredient objects with image URLs
+      final ingredients = remotePantryItems.map((item) => _Ingredient(
+        name: item['name']?.toString() ?? '',
+        category: CategoryEngine.getCategory(item['name']?.toString() ?? ''),
+        subtitle: CategoryEngine.getCategory(item['name']?.toString() ?? ''),
+        icon: _getIconForIngredient(item['name']?.toString() ?? ''),
+        imageUrl: item['imageUrl'] as String?, // Include imageUrl from remote
       )).toList();
 
       setState(() {
@@ -70,12 +77,40 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
         _isLoading = false;
       });
 
-      print("🔍 DEBUG: Loaded ${ingredients.length} pantry ingredients for selection");
+      print("🔍 DEBUG: Loaded ${ingredients.length} pantry ingredients from REMOTE server for selection");
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      print("❌ Error loading pantry ingredients: $e");
+      print("❌ Error loading REMOTE pantry ingredients: $e");
+      
+      // Fallback: Try loading from local PantryState as backup
+      try {
+        print("🔄 FALLBACK: Trying to load from local PantryState...");
+        final pantryState = Provider.of<PantryState>(context, listen: false);
+        await pantryState.loadPantry();
+        
+        final fallbackIngredients = pantryState.items.map((item) => _Ingredient(
+          name: item.name,
+          category: CategoryEngine.getCategory(item.name),
+          subtitle: CategoryEngine.getCategory(item.name),
+          icon: _getIconForIngredient(item.name),
+          imageUrl: item.imageUrl,
+        )).toList();
+
+        setState(() {
+          _allIngredients = fallbackIngredients;
+          _isLoading = false;
+        });
+        
+        print("🔍 DEBUG: Loaded ${fallbackIngredients.length} ingredients from LOCAL fallback");
+      } catch (fallbackError) {
+        print("❌ Fallback also failed: $fallbackError");
+        setState(() {
+          _allIngredients = [];
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -146,6 +181,9 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
     }
 
     final ingredients = _filteredIngredients;
+    print("🔍 DEBUG: Building UI with ${ingredients.length} filtered ingredients");
+    print("🔍 DEBUG: Selected category: $_selectedCategory");
+    print("🔍 DEBUG: Total ingredients in _allIngredients: ${_allIngredients.length}");
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -261,58 +299,123 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
 
           // ───────── LIST OF INGREDIENTS ─────────
           Expanded(
-            child: ListView.separated(
-              itemCount: ingredients.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, index) {
-                final item = ingredients[index];
-                final bool isChecked = _selectedIngredients.contains(item.name);
+            child: ingredients.isEmpty
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.kitchen_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No ingredients found in your pantry',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add ingredients to your pantry first',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    itemCount: ingredients.length,
+                    itemBuilder: (context, index) {
+                      final item = ingredients[index];
+                      final bool isChecked = _selectedIngredients.contains(item.name);
 
-                return CheckboxListTile(
-                  value: isChecked,
-                  onChanged: (bool? value) {
-                    _toggleIngredientSelection(item.name);
-                  },
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  secondary: Container(
-                    width: 44,
-                    height: 44,
-                    child: item.imageUrl != null
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(22),
-                            child: Image.network(
-                              item.imageUrl!,
-                              width: 44,
-                              height: 44,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => _buildEmojiFallback(item.icon),
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return _buildEmojiFallback(item.icon);
+                      return Row(
+                        children: [
+                          // Checkbox for selection
+                          Padding(
+                            padding: const EdgeInsets.only(left: 16, right: 8),
+                            child: Checkbox(
+                              value: isChecked,
+                              onChanged: (bool? value) {
+                                _toggleIngredientSelection(item.name);
                               },
+                              activeColor: kAccent,
                             ),
-                          )
-                        : _buildEmojiFallback(item.icon),
+                          ),
+                          
+                          // IngredientRow-like content
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(22),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                              margin: const EdgeInsets.only(right: 8, bottom: 6, top: 6),
+                              child: Row(
+                                children: [
+                                  // Dynamic ingredient image/emoji - using ItemImageResolver for consistency
+                                  Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    child: ItemImageResolver.getImageWidget(
+                                      item.name,
+                                      size: 50,
+                                      imageUrl: item.imageUrl, // Pass imageUrl to let resolver handle it
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 14),
+
+                                  // Name + category text
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.name,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 17,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          item.subtitle,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: Colors.black.withOpacity(0.55),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
-                  title: Text(
-                    item.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: Text(
-                    item.subtitle,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
-                    ),
-                  ),
-                  activeColor: kAccent,
-                );
-              },
-            ),
           ),
         ],
       ),
@@ -376,11 +479,11 @@ class _SelectIngredientsScreenState extends State<SelectIngredientsScreen> {
   // Helper method to build emoji fallback
   Widget _buildEmojiFallback(String emoji) {
     return CircleAvatar(
-      radius: 22,
+      radius: 32,
       backgroundColor: const Color(0xFFFFF3E6),
       child: Text(
         emoji,
-        style: const TextStyle(fontSize: 22),
+        style: const TextStyle(fontSize: 32),
       ),
     );
   }

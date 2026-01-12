@@ -252,12 +252,32 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
     return recipesForDate;
   }
 
-  void _navigateToRecipeDetail(dynamic recipeData) {
+  void _navigateToRecipeDetail(dynamic recipe) {
+    // Create a copy of the recipe data and enrich it with cuisine information
+    final enrichedRecipeData = Map<String, dynamic>.from(recipe as Map<String, dynamic>);
+    
+    // Extract cuisine from multiple possible sources
+    final cuisine = recipe['Cuisine']?.toString() ?? 
+                   recipe['cuisine']?.toString() ?? 
+                   recipe['Cuisine_Preference']?.toString() ?? 
+                   recipe['Meal_Type']?.toString() ?? 
+                   'Indian'; // Fallback
+    
+    // Ensure cuisine is available in the data for the detail screen
+    if (!enrichedRecipeData.containsKey('Cuisine') && !enrichedRecipeData.containsKey('cuisine')) {
+      enrichedRecipeData['Cuisine'] = cuisine;
+      enrichedRecipeData['cuisine'] = cuisine;
+      enrichedRecipeData['Cuisine_Preference'] = cuisine;
+    }
+    
+    print("🍽️ DEBUG: Navigating to detail screen with cuisine: $cuisine");
+    print("🍽️ DEBUG: Enriched recipe data keys: ${enrichedRecipeData.keys}");
+    
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => WeeklyGenerationRecipeDetailScreen(
-          recipeData: recipeData as Map<String, dynamic>,
+          recipeData: enrichedRecipeData,
         ),
       ),
     );
@@ -480,6 +500,15 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
     print("🔍 DEBUG: Looking for image in recipe: ${recipe['image_url']}");
     print("🔍 DEBUG: Recipe data: $recipe");
     
+    // Extract cuisine from recipe data or use fallback
+    final cuisine = recipe['Cuisine']?.toString() ?? 
+                   recipe['cuisine']?.toString() ?? 
+                   recipe['Cuisine_Preference']?.toString() ?? 
+                   recipe['Meal_Type']?.toString() ?? 
+                   'Indian'; // Fallback to match current behavior
+    
+    print("🍽️ DEBUG: Extracted cuisine: $cuisine");
+    
     return GestureDetector(
       onTap: () => _navigateToRecipeDetail(recipe),
       child: Container(
@@ -584,9 +613,9 @@ class _GenerateRecipeScreenState extends State<GenerateRecipeScreen> {
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          'Indian',
-                          style: TextStyle(
+                        child: Text(
+                          cuisine,
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.w600,

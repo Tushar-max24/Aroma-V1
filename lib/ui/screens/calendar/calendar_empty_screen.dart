@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
 import '../../../core/utils/category_engine.dart';
 import '../../../core/enums/scan_mode.dart';
 import '../../../data/services/home_recipe_service.dart';
 import '../../../data/services/pantry_list_service.dart';
+import '../../../state/pantry_state.dart';
 import '../../widgets/primary_button.dart';
 import '../recipe_detail/recipe_detail_screen.dart';
 import '../home/generate_recipe_screen.dart';
@@ -479,7 +481,7 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
     try {
       print('🔄 [Calendar] Starting recipe generation with pantry items...');
       
-      // Fetch actual pantry items
+      // Fetch actual pantry items from remote server
       final pantryItems = await _pantryListService.fetchPantryItems();
       
       // Extract ingredient names from pantry items
@@ -488,7 +490,7 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
           .where((name) => name.isNotEmpty)
           .toList();
       
-      print('🥦 Found ${ingredients.length} pantry items: $ingredients');
+      print('🥦 Found ${ingredients.length} remote pantry items: $ingredients');
       
       if (ingredients.isEmpty) {
         if (mounted) {
@@ -503,31 +505,8 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
         return;
       }
       
-      // Create request data for weekly recipe generation
-      final requestData = {
-        "Cuisine_Preference": "Indian",
-        "Dietary_Restrictions": "Vegetarian",
-        "Cookware_Available": ["Microwave Oven"],
-        "Meal_Type": ["Breakfast", "Lunch", "Snacks", "Dinner"],
-        "Cooking_Time": "< 30 min",
-        "Serving": "1",
-        "Ingredients_Available": ingredients,
-      };
-      
-      print('� [Calendar] Sending request with ${ingredients.length} ingredients');
-      
-      final weeklyResponse = await _homeRecipeService.generateWeeklyRecipes(requestData);
-      
+      // INSTANTLY navigate to weekly recipe screen (like manual selection)
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Generated ${weeklyResponse.length} weekly recipes using your pantry items!'),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
-        );
-        
-        // Navigate to weekly recipe screen with dates (recipe cards)
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -537,6 +516,47 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
             ),
           ),
         );
+      }
+      
+      // Generate recipes in background (non-blocking)
+      try {
+        // Create request data for weekly recipe generation
+        final requestData = {
+          "Cuisine_Preference": "Indian",
+          "Dietary_Restrictions": "Vegetarian",
+          "Cookware_Available": ["Microwave Oven"],
+          "Meal_Type": ["Breakfast", "Lunch", "Snacks", "Dinner"],
+          "Cooking_Time": "< 30 min",
+          "Serving": "1",
+          "Ingredients_Available": ingredients,
+        };
+        
+        print('📤 [Calendar] Sending request with ${ingredients.length} ingredients');
+        
+        final weeklyResponse = await _homeRecipeService.generateWeeklyRecipes(requestData);
+        
+        // Show success message after generation completes
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Generated ${weeklyResponse.length} weekly recipes using your pantry items!'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        print('❌ Background recipe generation failed: $e');
+        // Show error message but don't disrupt navigation
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Recipe generation failed: ${e.toString().replaceAll('Exception: ', '')}'),
+              backgroundColor: Colors.orange,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('❌ Error generating weekly recipes: $e');

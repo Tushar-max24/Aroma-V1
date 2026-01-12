@@ -561,6 +561,7 @@ class _ScannedIngredientsListScreen extends StatefulWidget {
 
 class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListScreen> {
   List<IngredientModel> _ingredients = [];
+  final PantryAddService _pantryService = PantryAddService();
 
   /// 👉 Store price, quantity & metrics separately (clean approach)
   final Map<String, double> _priceMap = {};
@@ -925,6 +926,15 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
                       addedCount++;
                     }
                   }
+
+                  // Save items to remote server using the correct API format
+                  debugPrint("📤 [PantryReview] Saving ${pantryItems.length} items to remote server...");
+                  final serverSuccess = await _pantryService.addIndividualPantryItems(pantryItems);
+                  debugPrint("✅ [PantryReview] Server save result: $serverSuccess");
+                  
+                  if (!serverSuccess['status']) {
+                    debugPrint("⚠️ [PantryReview] Failed to save to server, but local save succeeded");
+                  }
                   
                   String message;
                   if (addedCount > 0 && duplicateCount > 0) {
@@ -936,7 +946,7 @@ class _ScannedIngredientsListScreenState extends State<_ScannedIngredientsListSc
                   } else {
                     message = 'No items were added';
                   }
-                      
+                  
                   // Close loading indicator
                   if (mounted) {
                     Navigator.pop(context); // Close loading dialog

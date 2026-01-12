@@ -24,10 +24,10 @@ class IngredientsNeededScreen extends StatelessWidget {
       padding: const EdgeInsets.only(right: 12),
       child: Image.asset(
         'assets/images/pantry/temp_pantry.png', 
-        width: 32,
-        height: 32,
+        width: 64,
+        height: 64,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 30, color: Colors.grey),
+        errorBuilder: (_, __, ___) => const Icon(Icons.fastfood, size: 64, color: Colors.grey),
       ),
     );
   }
@@ -46,8 +46,8 @@ class IngredientsNeededScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return SizedBox(
-              width: 32,
-              height: 32,
+              width: 64,
+              height: 64,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
@@ -60,8 +60,8 @@ class IngredientsNeededScreen extends StatelessWidget {
             if (imagePath.startsWith('assets/')) {
               return Image.asset(
                 imagePath,
-                width: 32,
-                height: 32,
+                width: 64,
+                height: 64,
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
               );
@@ -70,15 +70,15 @@ class IngredientsNeededScreen extends StatelessWidget {
               if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
                 return Image.network(
                   imagePath,
-                  width: 32,
-                  height: 32,
+                  width: 64,
+                  height: 64,
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
                   loadingBuilder: (context, child, loadingProgress) {
                     if (loadingProgress == null) return child;
                     return Container(
-                      width: 32,
-                      height: 32,
+                      width: 64,
+                      height: 64,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.grey[400]!),
@@ -92,8 +92,8 @@ class IngredientsNeededScreen extends StatelessWidget {
               if (file.existsSync()) {
                 return Image.file(
                   file,
-                  width: 32,
-                  height: 32,
+                  width: 64,
+                  height: 64,
                   fit: BoxFit.contain,
                   errorBuilder: (_, __, ___) => _buildEmojiIcon(ingredientName),
                 );
@@ -115,7 +115,7 @@ class IngredientsNeededScreen extends StatelessWidget {
       padding: const EdgeInsets.only(right: 12),
       child: Text(
         ItemImageResolver.getEmojiForIngredient(ingredientName),
-        style: const TextStyle(fontSize: 30),
+        style: const TextStyle(fontSize: 44),
       ),
     );
   }

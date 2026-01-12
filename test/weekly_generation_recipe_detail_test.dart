@@ -76,6 +76,54 @@ void main() {
       expect(find.text('Unknown'), findsNothing);
     });
 
+    testWidgets('should display cuisine from "cuisine" field (lowercase)', (WidgetTester tester) async {
+      final recipeData = {
+        'Recipe Name': 'Test Recipe',
+        'cuisine': 'Mexican',
+        'Cooking Time': '30 min',
+        'Serving': 4,
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WeeklyGenerationRecipeDetailScreen(recipeData: recipeData),
+          ),
+        ),
+      );
+
+      // Wait for the widget to build
+      await tester.pumpAndSettle();
+
+      // Check if the cuisine is displayed
+      expect(find.text('Mexican'), findsOneWidget);
+      expect(find.text('Unknown'), findsNothing);
+    });
+
+    testWidgets('should display cuisine from "cuisine_type" field', (WidgetTester tester) async {
+      final recipeData = {
+        'Recipe Name': 'Test Recipe',
+        'cuisine_type': 'Thai',
+        'Cooking Time': '30 min',
+        'Serving': 4,
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WeeklyGenerationRecipeDetailScreen(recipeData: recipeData),
+          ),
+        ),
+      );
+
+      // Wait for the widget to build
+      await tester.pumpAndSettle();
+
+      // Check if the cuisine is displayed
+      expect(find.text('Thai'), findsOneWidget);
+      expect(find.text('Unknown'), findsNothing);
+    });
+
     testWidgets('should display "Unknown" when no cuisine field is found', (WidgetTester tester) async {
       final recipeData = {
         'Recipe Name': 'Test Recipe',
@@ -123,6 +171,54 @@ void main() {
       expect(find.text('Indian'), findsOneWidget);
       expect(find.text('Chinese'), findsNothing);
       expect(find.text('Italian'), findsNothing);
+    });
+
+    testWidgets('should handle null cuisine values gracefully', (WidgetTester tester) async {
+      final recipeData = {
+        'Recipe Name': 'Test Recipe',
+        'Cuisine': null,
+        'Cuisine_Preference': null,
+        'Cooking Time': '30 min',
+        'Serving': 4,
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WeeklyGenerationRecipeDetailScreen(recipeData: recipeData),
+          ),
+        ),
+      );
+
+      // Wait for the widget to build
+      await tester.pumpAndSettle();
+
+      // Check if "Unknown" is displayed when all cuisine values are null
+      expect(find.text('Unknown'), findsOneWidget);
+    });
+
+    testWidgets('should handle empty string cuisine values gracefully', (WidgetTester tester) async {
+      final recipeData = {
+        'Recipe Name': 'Test Recipe',
+        'Cuisine': '',
+        'Cuisine_Preference': '',
+        'Cooking Time': '30 min',
+        'Serving': 4,
+      };
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: WeeklyGenerationRecipeDetailScreen(recipeData: recipeData),
+          ),
+        ),
+      );
+
+      // Wait for the widget to build
+      await tester.pumpAndSettle();
+
+      // Check if "Unknown" is displayed when all cuisine values are empty strings
+      expect(find.text('Unknown'), findsOneWidget);
     });
   });
 }

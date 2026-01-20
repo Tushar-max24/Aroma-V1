@@ -90,7 +90,12 @@ class _PantryReviewIngredientsScreenState
                           items: convertedIngredients,
                         ),
                       ),
-                    );
+                    ).then((_) {
+                      // When coming back from review screen, reset to confirm state
+                      if (mounted) {
+                        setState(() => _state = ReviewState.confirm);
+                      }
+                    });
                     return;
                   }
                 }
@@ -117,7 +122,12 @@ class _PantryReviewIngredientsScreenState
                           items: List<Map<String, dynamic>>.from(items),
                         ),
                       ),
-                    );
+                    ).then((_) {
+                      // When coming back from review screen, reset to confirm state
+                      if (mounted) {
+                        setState(() => _state = ReviewState.confirm);
+                      }
+                    });
                   } else {
                     // Fallback: Try to extract ingredients directly from scan result
                     try {
@@ -149,7 +159,12 @@ class _PantryReviewIngredientsScreenState
                               items: fallbackItems,
                             ),
                           ),
-                        );
+                        ).then((_) {
+                          // When coming back from review screen, reset to confirm state
+                          if (mounted) {
+                            setState(() => _state = ReviewState.confirm);
+                          }
+                        });
                       } else {
                         if (!mounted) return;
                         setState(() => _state = ReviewState.failed);
@@ -172,13 +187,7 @@ class _PantryReviewIngredientsScreenState
               setState(() => _state = ReviewState.failed);
             }
           },
-          onRetake: () => Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const PantrySearchAddScreen(),
-                    ),
-                    (route) => false,
-                  ),
+          onRetake: () => Navigator.pop(context),
         );
 
       case ReviewState.scanning:

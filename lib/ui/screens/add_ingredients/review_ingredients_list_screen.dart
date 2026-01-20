@@ -240,7 +240,10 @@ class _ReviewIngredientsListScreenState
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      // Reset parent screen state before popping
+                      Navigator.pop(context, 'reset_state');
+                    },
                     child: _circleIcon(Icons.arrow_back),
                   ),
                   GestureDetector(

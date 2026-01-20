@@ -28,6 +28,7 @@ import '../../widgets/web_banner.dart';
 import 'generate_recipe_screen.dart';
 import 'pantry_selection_screen.dart';
 import '../search/search_screen.dart';
+import '../notifications/notification_screen.dart';
 
 class SpringScrollPhysics extends ScrollPhysics {
   const SpringScrollPhysics({ScrollPhysics? parent}) : super(parent: parent);
@@ -689,7 +690,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                       IconButton(
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
-                                        onPressed: () {},
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => const NotificationScreen(),
+                                            ),
+                                          );
+                                        },
                                         icon: SvgPicture.asset(
                                           'assets/images/notification_icon.svg',
                                           width: 24,

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:flavoryx/data/models/ingredient_model.dart';
+import 'package:aroma/data/models/ingredient_model.dart';
 
 class PantryAddService {
   // Add ingredient to pantry

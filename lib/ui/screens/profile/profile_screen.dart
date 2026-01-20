@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:provider/provider.dart';
+import '../../../core/services/auth_service.dart';
 import '../calendar/calendar_empty_screen.dart';
+import '../home/home_screen.dart';
 import '../home/generate_recipe_screen.dart';
+import '../auth/login_screen.dart';
 import 'my_account_screen.dart';
 import 'my_family_screen.dart';
 import 'kitchen_hub_screen.dart';
@@ -81,10 +85,13 @@ class ProfileScreen extends StatelessWidget {
                         width: 1.5,
                       ),
                     ),
-                    child: const Icon(
-                      Icons.person,
-                      size: 32,
-                      color: Color(0xFFFF8C1A),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/images/profile_icon.svg',
+                        width: 32,
+                        height: 32,
+                        colorFilter: const ColorFilter.mode(Color(0xFFFF8C1A), BlendMode.srcIn),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -93,9 +100,9 @@ class ProfileScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          'Guest',
-                          style: TextStyle(
+                        Text(
+                          context.watch<AuthService>().user?.name ?? 'Guest',
+                          style: const TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.black87,
@@ -272,35 +279,41 @@ class ProfileScreen extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => HomeScreen(phoneNumber: ''),
+                ),
+                (route) => false,
+              );
             },
-            icon: const Icon(
-              Icons.home_filled,
-              color: Color(0xFFB0B0B0),
+            icon: SvgPicture.asset(
+              'assets/images/home_icon.svg',
+              width: 26,
+              height: 26,
+              colorFilter: const ColorFilter.mode(Color(0xFFB0B0B0), BlendMode.srcIn),
             ),
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(
-              Icons.search,
-              color: Color(0xFFB0B0B0),
+            icon: SvgPicture.asset(
+              'assets/images/search_icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(Color(0xFFB0B0B0), BlendMode.srcIn),
             ),
           ),
           Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFFFFF3E6),
-              border: Border.all(
-                color: const Color(0xFFFFE0B2),
-                width: 1,
-              ),
+              color: Color(0xFFFC6E3C),
             ),
-            child: const Icon(
-              Icons.restaurant_menu,
-              color: Color(0xFFFFA000),
-              size: 20,
+            padding: const EdgeInsets.all(10),
+            child: SvgPicture.asset(
+              'assets/images/chef_icon.svg',
+              width: 44,
+              height: 44,
+              colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
             ),
           ),
           IconButton(
@@ -312,16 +325,20 @@ class ProfileScreen extends StatelessWidget {
                 ),
               );
             },
-            icon: const Icon(
-              Icons.calendar_month_outlined,
-              color: Color(0xFFFC6E3C),
+            icon: SvgPicture.asset(
+              'assets/images/calendar_icon.svg',
+              width: 24,
+              height: 24,
+              colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
             ),
           ),
           IconButton(
             onPressed: () {},
-            icon: const Icon(
-              Icons.person,
-              color: Color(0xFFFC6E3C),
+            icon: SvgPicture.asset(
+              'assets/images/profile_icon.svg',
+              width: 24,
+              height: 24,
+              colorFilter: const ColorFilter.mode(Color(0xFFFC6E3C), BlendMode.srcIn),
             ),
           ),
         ],
@@ -445,14 +462,24 @@ class ProfileScreen extends StatelessWidget {
 
   // ---------- REAL LOGOUT LOGIC HERE ----------
   void _performLogout(BuildContext context) async {
-    // TODO: add your real logout code here
-    // e.g. FirebaseAuth.instance.signOut();
-    //      await prefs.clear();
+    try {
+      // Use AuthService to logout
+      final authService = context.read<AuthService>();
+      await authService.logout();
 
-    // Navigate to login (or onboarding) and clear back stack
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login', // change to your login route name / screen
-      (route) => false,
-    );
+      // Navigate to login screen and clear back stack
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
+    } catch (e) {
+      // Handle logout error
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Error logging out'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

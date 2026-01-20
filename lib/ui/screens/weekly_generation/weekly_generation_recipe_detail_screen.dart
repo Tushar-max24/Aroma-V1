@@ -613,9 +613,9 @@ class _WeeklyGenerationRecipeDetailScreenState extends State<WeeklyGenerationRec
           // Cook Now button
           Expanded(
             child: Container(
-              height: 50,
+              height: 48,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFFFF6A45).withOpacity(0.3),
@@ -642,7 +642,7 @@ class _WeeklyGenerationRecipeDetailScreenState extends State<WeeklyGenerationRec
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFF6A45),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 0,
                 ),

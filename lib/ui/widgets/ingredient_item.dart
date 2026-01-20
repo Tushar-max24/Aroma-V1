@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flavoryx/data/models/ingredient_model.dart';
+import 'package:aroma/data/models/ingredient_model.dart';
 
 class IngredientItem extends StatelessWidget {
   final IngredientModel ingredient;

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flavoryx/core/theme/app_colors.dart';
+import 'package:aroma/core/theme/app_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../../../widgets/cached_image.dart';
-import 'package:flavoryx/ui/screens/add_ingredients/ingredient_entry_screen.dart';
-import 'package:flavoryx/ui/screens/profile/profile_screen.dart';
-import 'package:flavoryx/ui/screens/home/home_screen.dart';
-import 'package:flavoryx/ui/screens/home/generate_recipe_screen.dart';
+import 'package:aroma/ui/screens/add_ingredients/ingredient_entry_screen.dart';
+import 'package:aroma/ui/screens/profile/profile_screen.dart';
+import 'package:aroma/ui/screens/home/home_screen.dart';
+import 'package:aroma/ui/screens/home/generate_recipe_screen.dart';
 import 'select_ingredients_screen.dart';
 import '../../../core/enums/scan_mode.dart';
 import '../../../core/utils/category_engine.dart';

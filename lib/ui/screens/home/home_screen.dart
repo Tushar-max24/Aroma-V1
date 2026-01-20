@@ -4,14 +4,17 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/physics.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:math' as math;
 import 'dart:async';
+
 import '../../../data/models/recipe_model.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../state/home_provider.dart';
-import '../../widgets/popular_recipe_tile.dart';
+import '../../widgets/explore_popular_choice_card.dart';
 import '../../widgets/recipe_card.dart';
+import '../../widgets/custom_search_icon.dart';
 import '../add_ingredients/ingredient_entry_screen.dart';
 import '../auth/login_screen.dart';
 import '../profile/profile_screen.dart';
@@ -24,6 +27,7 @@ import '../../../widgets/primary_button.dart';
 import '../../widgets/web_banner.dart';
 import 'generate_recipe_screen.dart';
 import 'pantry_selection_screen.dart';
+import '../search/search_screen.dart';
 
 class SpringScrollPhysics extends ScrollPhysics {
   const SpringScrollPhysics({ScrollPhysics? parent}) : super(parent: parent);
@@ -674,10 +678,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                             ),
                                           );
                                         },
-                                        icon: const Icon(
-                                          Icons.shopping_basket_outlined,
-                                          size: 24,
-                                          color: Colors.black87,
+                                        icon: SvgPicture.asset(
+                                          'assets/images/pantry_icon.svg',
+                                          width: 24,
+                                          height: 24,
+                                          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
                                         ),
                                       ),
                                       const SizedBox(width: 24),
@@ -685,9 +690,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(),
                                         onPressed: () {},
-                                        icon: const Icon(
-                                          Icons.notifications_outlined,
-                                          size: 24,
+                                        icon: SvgPicture.asset(
+                                          'assets/images/notification_icon.svg',
+                                          width: 24,
+                                          height: 24,
+                                          colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
                                         ),
                                       ),
                                       const SizedBox(width: 4),
@@ -766,13 +773,21 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 const Text(
                                   'Explore popular recipes',
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF2C3E50),
                                   ),
                                 ),
                                 IconButton(
-                                  onPressed: () {},
-                                  icon: const Icon(Icons.search, size: 20),
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const SearchScreen(),
+                                      ),
+                                    );
+                                  },
+                                  icon: const CustomSearchIcon(size: 32),
                                 ),
                               ],
                             ),
@@ -794,12 +809,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           }
 
                           final recipe = provider.recipes[index];
-                          final bool isLarge = index.isEven;
 
                           return RepaintBoundary(
-                            child: PopularRecipeTile(
+                            child: ExplorePopularChoiceCard(
                               recipe: recipe,
-                              isLarge: isLarge,
+                              isLeftCard: index.isEven,
                             ),
                           );
                         },
@@ -886,16 +900,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               children: <Widget>[
                 IconButton(
                   onPressed: () {},
-                  icon: const Icon(
-                    Icons.home_filled,
-                    color: Color(0xFFFC6E3C),
+                  icon: SvgPicture.asset(
+                    'assets/images/home_icon.svg',
+                    width: 26,
+                    height: 26,
+                    colorFilter: const ColorFilter.mode(Color(0xFFFC6E3C), BlendMode.srcIn),
                   ),
                 ),
                 IconButton(
-                  onPressed: () {},
-                  icon: const Icon(
-                    Icons.search,
-                    color: Color(0xFFB0B0B0),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SearchScreen(),
+                      ),
+                    );
+                  },
+                  icon: SvgPicture.asset(
+                    'assets/images/search_icon.svg',
+                    width: 20,
+                    height: 20,
+                    colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
                   ),
                 ),
                 GestureDetector(
@@ -915,9 +940,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       color: Color(0xFFFC6E3C),
                     ),
                     padding: const EdgeInsets.all(10),
-                    child: const Icon(
-                      Icons.restaurant_menu,
-                      color: Colors.white,
+                    child: SvgPicture.asset(
+                      'assets/images/chef_icon.svg',
+                      width: 44,
+                      height: 44,
+                      colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
                     ),
                   ),
                 ),
@@ -931,9 +958,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     );
                   },
-                  icon: const Icon(
-                    Icons.calendar_month_outlined,
-                    color: Color(0xFFFC6E3C),
+                  icon: SvgPicture.asset(
+                    'assets/images/calendar_icon.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
                   ),
                 ),
                 IconButton(
@@ -946,9 +975,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ),
                     );
                   },
-                  icon: const Icon(
-                    Icons.person_outline,
-                    color: Color(0xFFB0B0B0),
+                  icon: SvgPicture.asset(
+                    'assets/images/profile_icon.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: const ColorFilter.mode(Colors.black, BlendMode.srcIn),
                   ),
                 ),
               ],

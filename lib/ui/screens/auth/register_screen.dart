@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flavoryx/core/services/auth_service.dart';
-import 'package:flavoryx/core/utils/auth_utils.dart';
-import 'package:flavoryx/ui/widgets/loading_overlay.dart';
+import 'package:aroma/core/services/auth_service.dart';
+import 'package:aroma/core/theme/app_theme.dart';
+import 'package:aroma/core/utils/auth_utils.dart';
+import 'package:aroma/ui/widgets/loading_overlay.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -359,7 +360,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     child: ElevatedButton(
                       onPressed: _isLoading ? null : _handleRegister,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: AppTheme.primaryColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -398,7 +399,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         child: const Text(
                           'Sign In',
                           style: TextStyle(
-                            color: Colors.orange,
+                            color: AppTheme.primaryColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

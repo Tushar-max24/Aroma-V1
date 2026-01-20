@@ -15,7 +15,7 @@ import '../add_ingredients/ingredient_entry_screen.dart';
 import '../calendar/select_ingredients_screen.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
-import 'package:flavoryx/ui/screens/home/pantry_selection_screen.dart';
+import 'package:aroma/ui/screens/home/pantry_selection_screen.dart';
 import '../../../data/services/pantry_list_service.dart';
 import '../home/home_screen.dart';
 import '../../widgets/cached_image.dart';
@@ -107,10 +107,11 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
                   color: kAccent.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(60),
                 ),
-                child: const Icon(
-                  Icons.restaurant,
-                  size: 60,
-                  color: kAccent,
+                child: SvgPicture.asset(
+                  'assets/images/chef_icon.svg',
+                  width: 44,
+                  height: 44,
+                  colorFilter: const ColorFilter.mode(kAccent, BlendMode.srcIn),
                 ),
               ),
               
@@ -305,13 +306,23 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
                 ),
               );
             },
-            icon: const Icon(Icons.home_filled, color: Color(0xFFB0B0B0)),
+            icon: SvgPicture.asset(
+              'assets/images/home_icon.svg',
+              width: 26,
+              height: 26,
+              colorFilter: const ColorFilter.mode(Color(0xFFB0B0B0), BlendMode.srcIn),
+            ),
           ),
 
           // SEARCH
           IconButton(
             onPressed: () {},
-            icon: const Icon(Icons.search, color: Color(0xFFB0B0B0)),
+            icon: SvgPicture.asset(
+              'assets/images/search_icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: const ColorFilter.mode(Color(0xFFB0B0B0), BlendMode.srcIn),
+            ),
           ),
 
           // CENTER ORANGE BUTTON
@@ -333,16 +344,23 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
                 color: Color(0xFFFC6E3C),
               ),
               padding: const EdgeInsets.all(10),
-              child: const Icon(Icons.restaurant_menu, color: Colors.white),
+              child: SvgPicture.asset(
+                'assets/images/chef_icon.svg',
+                width: 44,
+                height: 44,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+              ),
             ),
           ),
 
           // CALENDAR → ACTIVE PAGE
           IconButton(
             onPressed: () {},
-            icon: const Icon(
-              Icons.calendar_month_outlined,
-              color: Color(0xFFFC6E3C),
+            icon: SvgPicture.asset(
+              'assets/images/calendar_icon.svg',
+              width: 24,
+              height: 24,
+              colorFilter: const ColorFilter.mode(Color(0xFFFC6E3C), BlendMode.srcIn),
             ),
           ),
 
@@ -356,7 +374,12 @@ class _CalendarEmptyScreenState extends State<CalendarEmptyScreen>
                 ),
               );
             },
-            icon: const Icon(Icons.person_outline, color: Color(0xFFB0B0B0)),
+            icon: SvgPicture.asset(
+              'assets/images/profile_icon.svg',
+              width: 24,
+              height: 24,
+              colorFilter: const ColorFilter.mode(Color(0xFFB0B0B0), BlendMode.srcIn),
+            ),
           ),
         ],
       ),

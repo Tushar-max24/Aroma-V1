@@ -571,10 +571,10 @@ class _RecipeCard extends StatelessWidget {
       );
     },
     child: Container(
-      height: 52,
+      height: 48,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: const Center(
         child: Text(
@@ -582,6 +582,7 @@ class _RecipeCard extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.w800,
             fontSize: 16,
+            color: Colors.black,
           ),
         ),
       ),

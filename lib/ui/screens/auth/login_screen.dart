@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flavoryx/core/services/auth_service.dart';
-import 'package:flavoryx/core/utils/auth_utils.dart';
-import 'package:flavoryx/ui/widgets/loading_overlay.dart';
-import 'package:flavoryx/ui/screens/home/home_screen.dart';
+import 'package:aroma/core/services/auth_service.dart';
+import 'package:aroma/core/theme/app_theme.dart';
+import 'package:aroma/core/utils/auth_utils.dart';
+import 'package:aroma/ui/widgets/loading_overlay.dart';
+import 'package:aroma/ui/screens/home/home_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -208,7 +209,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
-                                color: !_isOtpLogin ? Colors.orange : Colors.transparent,
+                                color: !_isOtpLogin ? AppTheme.primaryColor : Colors.transparent,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -235,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               decoration: BoxDecoration(
-                                color: _isOtpLogin ? Colors.orange : Colors.transparent,
+                                color: _isOtpLogin ? AppTheme.primaryColor : Colors.transparent,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Text(
@@ -456,7 +457,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: ElevatedButton(
                       onPressed: (_isLoading || _isGeneratingOtp) ? null : (_isOtpLogin && !_otpGenerated ? _generateOtp : _handleLogin),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
+                        backgroundColor: AppTheme.primaryColor,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -499,7 +500,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: const Text(
                           'Sign Up',
                           style: TextStyle(
-                            color: Colors.orange,
+                            color: AppTheme.primaryColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flavoryx/ui/screens/home/home_screen.dart';
+import 'package:aroma/core/theme/app_theme.dart';
+import 'package:aroma/ui/screens/home/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OtpVerificationScreen extends StatelessWidget {
@@ -60,7 +61,7 @@ class OtpVerificationScreen extends StatelessWidget {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: Color(0xFFFF6A45)),
+                  borderSide: const BorderSide(color: AppTheme.primaryColor),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
@@ -81,7 +82,7 @@ class OtpVerificationScreen extends StatelessWidget {
                 child: const Text(
                   'Resend OTP',
                   style: TextStyle(
-                    color: Color(0xFFFF6A45),
+                    color: AppTheme.primaryColor,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -119,7 +120,7 @@ class OtpVerificationScreen extends StatelessWidget {
                   }
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF6A45),
+                  backgroundColor: AppTheme.primaryColor,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

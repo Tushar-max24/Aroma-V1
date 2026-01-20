@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flavoryx/core/services/auth_service.dart';
-import 'package:flavoryx/ui/screens/home/home_screen.dart';
+import 'package:aroma/core/services/auth_service.dart';
+import 'package:aroma/ui/screens/home/home_screen.dart';
 import 'login_screen.dart';
 
 class AuthWrapper extends StatelessWidget {

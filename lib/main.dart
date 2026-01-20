@@ -5,21 +5,24 @@ import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 // State & Services
-import 'package:flavoryx/state/pantry_state.dart';
-import 'package:flavoryx/state/home_provider.dart';
-import 'package:flavoryx/data/services/gemini_recipe_service.dart';
-import 'package:flavoryx/data/services/shopping_list_service.dart';
-import 'package:flavoryx/data/services/cache_manager_service.dart';
-import 'package:flavoryx/data/services/ingredient_image_service.dart';
-import 'package:flavoryx/data/services/enhanced_ingredient_image_service.dart';
-import 'package:flavoryx/core/services/auth_service.dart';
-import 'package:flavoryx/data/services/app_state_service.dart';
-import 'package:flavoryx/data/services/app_state_persistence_service.dart';
-import 'package:flavoryx/data/services/session_cache_service.dart';
+import 'package:aroma/state/pantry_state.dart';
+import 'package:aroma/state/home_provider.dart';
+import 'package:aroma/data/services/gemini_recipe_service.dart';
+import 'package:aroma/data/services/shopping_list_service.dart';
+import 'package:aroma/data/services/cache_manager_service.dart';
+import 'package:aroma/data/services/ingredient_image_service.dart';
+import 'package:aroma/data/services/enhanced_ingredient_image_service.dart';
+import 'package:aroma/core/services/auth_service.dart';
+import 'package:aroma/data/services/app_state_service.dart';
+import 'package:aroma/data/services/app_state_persistence_service.dart';
+import 'package:aroma/data/services/session_cache_service.dart';
 
 // UI Screens
-import 'package:flavoryx/ui/screens/auth/auth_wrapper.dart';
-import 'package:flavoryx/ui/screens/splash/splash_screen.dart';
+import 'package:aroma/ui/screens/auth/auth_wrapper.dart';
+import 'package:aroma/ui/screens/splash/splash_screen.dart';
+
+// Theme
+import 'package:aroma/core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -189,20 +192,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: 'Aroma',
       debugShowCheckedModeBanner: false,
 
-      theme: ThemeData(
-        primarySwatch: Colors.orange,
-        scaffoldBackgroundColor: Colors.white,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          iconTheme: IconThemeData(color: Colors.black),
-          titleTextStyle: TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
+      theme: AppTheme.lightTheme,
 
       // ✅ Splash screen is now the FIRST screen
       home: SplashScreen(

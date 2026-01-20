@@ -1,5 +1,5 @@
-name: flavoryx
-description: "A new Flutter project."
+name: aroma
+description: "Aroma - Smart Kitchen Assistant."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -58,6 +58,7 @@ dependencies:
   sqflite_common_ffi: ^2.3.3
   sqflite_common_ffi_web: ^0.4.2
   webview_flutter: ^4.4.4
+  google_fonts: ^7.0.2
 
 dev_dependencies:
   flutter_test:
